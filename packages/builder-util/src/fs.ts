@@ -12,14 +12,30 @@ import * as isCI from "is-ci"
 export const MAX_FILE_REQUESTS = 8
 export const CONCURRENCY = { concurrency: MAX_FILE_REQUESTS }
 
-export type AfterCopyFileTransformer = (file: string) => Promise<void>
+export type AfterCopyFileTransformer = (file: string) => Promise<boolean>
 
 export class CopyFileTransformer {
   constructor(public readonly afterCopyTransformer: AfterCopyFileTransformer) {}
 }
 
 export type FileTransformer = (file: string) => Promise<null | string | Buffer | CopyFileTransformer> | null | string | Buffer | CopyFileTransformer
-export type Filter = (file: string, stat: Stats) => boolean
+export interface FilterStats extends Stats {
+  // These module name and paths are mainly used for:
+  // 1. File filtering
+  // 2. Asar unpacking rules
+  // 3. Dependency resolution
+
+  // The name of the node module (e.g. 'express')
+  moduleName?: string
+  // The root path of the node module (e.g. 'node_modules/express')
+  moduleRootPath?: string
+  // The full file path within the node module (e.g. 'node_modules/express/lib/application.js')
+  moduleFullFilePath?: string
+  // deal with asar unpack sysmlink
+  relativeLink?: string
+  linkRelativeToFile?: string
+}
+export type Filter = (file: string, stat: FilterStats) => boolean
 
 export function unlinkIfExists(file: string) {
   return unlink(file).catch(() => {
@@ -35,7 +51,7 @@ export async function exists(file: string): Promise<boolean> {
   try {
     await access(file)
     return true
-  } catch (e) {
+  } catch (_e: any) {
     return false
   }
 }
@@ -88,9 +104,9 @@ export async function walk(initialDirPath: string, filter?: Filter | null, consu
           }
 
           const consumerResult = consumer == null ? null : consumer.consume(filePath, stat, dirPath, childNames)
-          if (consumerResult === false) {
+          if (consumerResult === true) {
             return null
-          } else if (consumerResult == null || !("then" in consumerResult)) {
+          } else if (consumerResult === false || consumerResult == null || !("then" in consumerResult)) {
             if (stat.isDirectory()) {
               dirs.push(name)
               return null
@@ -185,7 +201,7 @@ export function copyOrLinkFile(src: string, dest: string, stats?: Stats | null, 
   }
 
   if (isUseHardLink) {
-    return link(src, dest).catch(e => {
+    return link(src, dest).catch((e: any) => {
       if (e.code === "EXDEV") {
         const isLog = exDevErrorHandler == null ? true : exDevErrorHandler()
         if (isLog && log.isDebugEnabled) {
@@ -212,7 +228,10 @@ function doCopyFile(src: string, dest: string, stats: Stats | null | undefined):
 export class FileCopier {
   isUseHardLink: boolean
 
-  constructor(private readonly isUseHardLinkFunction?: ((file: string) => boolean) | null, private readonly transformer?: FileTransformer | null) {
+  constructor(
+    private readonly isUseHardLinkFunction?: ((file: string) => boolean) | null,
+    private readonly transformer?: FileTransformer | null
+  ) {
     if (isUseHardLinkFunction === USE_HARD_LINKS) {
       this.isUseHardLink = true
     } else {
@@ -220,7 +239,7 @@ export class FileCopier {
     }
   }
 
-  async copy(src: string, dest: string, stat: Stats | undefined) {
+  async copy(src: string, dest: string, stat: Stats | undefined): Promise<void> {
     let afterCopyTransformer: AfterCopyFileTransformer | null = null
     if (this.transformer != null && stat != null && stat.isFile()) {
       let data = this.transformer(src)
@@ -304,6 +323,27 @@ export function copyDir(src: string, destination: string, options: CopyDirOption
       }
     },
   }).then(() => BluebirdPromise.map(links, it => symlink(it.link, it.file, symlinkType), CONCURRENCY))
+}
+
+export async function dirSize(dirPath: string): Promise<number> {
+  const entries = await readdir(dirPath, { withFileTypes: true })
+
+  const entrySizes = entries.map(async entry => {
+    const entryPath = path.join(dirPath, entry.name)
+
+    if (entry.isDirectory()) {
+      return await dirSize(entryPath)
+    }
+
+    if (entry.isFile()) {
+      const { size } = await stat(entryPath)
+      return size
+    }
+
+    return 0
+  })
+
+  return (await Promise.all(entrySizes)).reduce((entrySize, totalSize) => entrySize + totalSize, 0)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

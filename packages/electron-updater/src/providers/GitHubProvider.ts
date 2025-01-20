@@ -16,7 +16,11 @@ export abstract class BaseGitHubProvider<T extends UpdateInfo> extends Provider<
   protected readonly baseUrl: URL
   protected readonly baseApiUrl: URL
 
-  protected constructor(protected readonly options: GithubOptions, defaultHost: string, runtimeOptions: ProviderRuntimeOptions) {
+  protected constructor(
+    protected readonly options: GithubOptions,
+    defaultHost: string,
+    runtimeOptions: ProviderRuntimeOptions
+  ) {
     super({
       ...runtimeOptions,
       /* because GitHib uses S3 */
@@ -31,13 +35,22 @@ export abstract class BaseGitHubProvider<T extends UpdateInfo> extends Provider<
   protected computeGithubBasePath(result: string): string {
     // https://github.com/electron-userland/electron-builder/issues/1903#issuecomment-320881211
     const host = this.options.host
-    return host !== null && host !== "github.com" && host !== "api.github.com" ? `/api/v3${result}` : result
+    return host && !["github.com", "api.github.com"].includes(host) ? `/api/v3${result}` : result
   }
 }
 
 export class GitHubProvider extends BaseGitHubProvider<GithubUpdateInfo> {
-  constructor(protected readonly options: GithubOptions, private readonly updater: AppUpdater, runtimeOptions: ProviderRuntimeOptions) {
+  constructor(
+    protected readonly options: GithubOptions,
+    private readonly updater: AppUpdater,
+    runtimeOptions: ProviderRuntimeOptions
+  ) {
     super(options, "github.com", runtimeOptions)
+  }
+
+  private get channel(): string {
+    const result = this.updater.channel || this.options.channel
+    return result == null ? this.getDefaultChannelName() : this.getCustomChannelName(result)
   }
 
   async getLatestVersion(): Promise<GithubUpdateInfo> {
@@ -57,33 +70,39 @@ export class GitHubProvider extends BaseGitHubProvider<GithubUpdateInfo> {
     let tag: string | null = null
     try {
       if (this.updater.allowPrerelease) {
-        const currentChannel = this.updater?.channel || String(semver.prerelease(this.updater.currentVersion)?.[0]) || null
-        for (const element of feed.getElements("entry")) {
+        const currentChannel = this.updater?.channel || (semver.prerelease(this.updater.currentVersion)?.[0] as string) || null
+
+        if (currentChannel === null) {
           // noinspection TypeScriptValidateJSTypes
-          const hrefElement = hrefRegExp.exec(element.element("link").attribute("href"))!
+          tag = hrefRegExp.exec(latestRelease.element("link").attribute("href"))![1]
+        } else {
+          for (const element of feed.getElements("entry")) {
+            // noinspection TypeScriptValidateJSTypes
+            const hrefElement = hrefRegExp.exec(element.element("link").attribute("href"))!
 
-          // If this is null then something is wrong and skip this release
-          if (hrefElement === null) continue
+            // If this is null then something is wrong and skip this release
+            if (hrefElement === null) continue
 
-          // This Release's Tag
-          const hrefTag = hrefElement[1]
-          //Get Channel from this release's tag
-          const hrefChannel = semver.prerelease(hrefTag)?.[0] || null
+            // This Release's Tag
+            const hrefTag = hrefElement[1]
+            //Get Channel from this release's tag
+            const hrefChannel = (semver.prerelease(hrefTag)?.[0] as string) || null
 
-          const shouldFetchVersion = !currentChannel || ["alpha", "beta"].includes(currentChannel)
-          const isCustomChannel = !["alpha", "beta"].includes(String(hrefChannel))
-          // Allow moving from alpha to beta but not down
-          const channelMismatch = currentChannel === "beta" && hrefChannel === "alpha"
+            const shouldFetchVersion = !currentChannel || ["alpha", "beta"].includes(currentChannel)
+            const isCustomChannel = hrefChannel !== null && !["alpha", "beta"].includes(String(hrefChannel))
+            // Allow moving from alpha to beta but not down
+            const channelMismatch = currentChannel === "beta" && hrefChannel === "alpha"
 
-          if (shouldFetchVersion && !isCustomChannel && !channelMismatch) {
-            tag = hrefTag
-            break
-          }
+            if (shouldFetchVersion && !isCustomChannel && !channelMismatch) {
+              tag = hrefTag
+              break
+            }
 
-          const isNextPreRelease = hrefChannel && hrefChannel === currentChannel
-          if (isNextPreRelease) {
-            tag = hrefTag
-            break
+            const isNextPreRelease = hrefChannel && hrefChannel === currentChannel
+            if (isNextPreRelease) {
+              tag = hrefTag
+              break
+            }
           }
         }
       } else {
@@ -96,7 +115,7 @@ export class GitHubProvider extends BaseGitHubProvider<GithubUpdateInfo> {
           }
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       throw newError(`Cannot parse releases feed: ${e.stack || e.message},\nXML:\n${feedXml}`, "ERR_UPDATER_INVALID_RELEASE_FEED")
     }
 
@@ -113,7 +132,7 @@ export class GitHubProvider extends BaseGitHubProvider<GithubUpdateInfo> {
       const requestOptions = this.createRequestOptions(channelFileUrl)
       try {
         return (await this.executor.request(requestOptions, cancellationToken))!
-      } catch (e) {
+      } catch (e: any) {
         if (e instanceof HttpError && e.statusCode === 404) {
           throw newError(`Cannot find ${channelFile} in the latest release artifacts (${channelFileUrl}): ${e.stack || e.message}`, "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND")
         }
@@ -122,9 +141,12 @@ export class GitHubProvider extends BaseGitHubProvider<GithubUpdateInfo> {
     }
 
     try {
-      const channel = this.updater.allowPrerelease ? this.getCustomChannelName(String(semver.prerelease(tag)?.[0] || "latest")) : this.getDefaultChannelName()
+      let channel = this.channel
+      if (this.updater.allowPrerelease && semver.prerelease(tag)?.[0]) {
+        channel = this.getCustomChannelName(String(semver.prerelease(tag)?.[0]))
+      }
       rawData = await fetchData(channel)
-    } catch (e) {
+    } catch (e: any) {
       if (this.updater.allowPrerelease) {
         // Allow fallback to `latest.yml`
         rawData = await fetchData(this.getDefaultChannelName())
@@ -162,7 +184,7 @@ export class GitHubProvider extends BaseGitHubProvider<GithubUpdateInfo> {
 
       const releaseInfo: GithubReleaseInfo = JSON.parse(rawData)
       return releaseInfo.tag_name
-    } catch (e) {
+    } catch (e: any) {
       throw newError(`Unable to find latest version on GitHub (${url}), please ensure a production release exists: ${e.stack || e.message}`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")
     }
   }

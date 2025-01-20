@@ -3,6 +3,7 @@ import { app, copyTestAsset } from "../helpers/packTester"
 import * as path from "path"
 import { mkdir } from "fs/promises"
 import { isEnvTrue } from "builder-util"
+import { readFile } from "fs-extra"
 
 // test that we can get info from protected pfx
 const protectedCscLink =
@@ -15,6 +16,18 @@ it.ifDevOrWinCi(
   app(
     {
       targets: Platform.WINDOWS.createTarget(["appx"], Arch.x64),
+      config: {
+        electronFuses: {
+          runAsNode: true,
+          enableCookieEncryption: true,
+          enableNodeOptionsEnvironmentVariable: true,
+          enableNodeCliInspectArguments: true,
+          enableEmbeddedAsarIntegrityValidation: true,
+          onlyLoadAppFromAsar: true,
+          loadBrowserProcessSpecificV8Snapshot: true,
+          grantFileProtocolExtraPrivileges: undefined, // unsupported on current electron version in our tests
+        },
+      },
     },
     {
       projectDirCreated: async projectDir => {
@@ -42,6 +55,24 @@ it.ifDevOrWinCi(
   )
 )
 
+// use identityName and same setting for applicationId
+it.ifDevOrWinCi(
+  "application id",
+  app(
+    {
+      targets: Platform.WINDOWS.createTarget(["appx"], Arch.x64),
+      config: {
+        cscLink: protectedCscLink,
+        cscKeyPassword: "test",
+        appx: {
+          identityName: "01234Test.ApplicationDataSample",
+        },
+      },
+    },
+    {}
+  )
+)
+
 const it2 = isEnvTrue(process.env.DO_APPX_CERT_STORE_AWARE_TEST) ? test : test.skip
 it2.ifNotCi(
   "certificateSubjectName",
@@ -49,7 +80,9 @@ it2.ifNotCi(
     targets: Platform.WINDOWS.createTarget(["appx"], Arch.x64),
     config: {
       win: {
-        certificateSubjectName: "Foo",
+        signtoolOptions: {
+          certificateSubjectName: "Foo",
+        },
       },
     },
   })
@@ -65,6 +98,40 @@ it(
       cscKeyPassword: "test",
       appx: {
         languages: ["de-DE", "ru-RU"],
+        minVersion: "10.0.16299.0",
+        maxVersionTested: "10.0.16299.0",
+      },
+    },
+  })
+)
+
+it(
+  "custom template appmanifest.xml",
+  app({
+    targets: Platform.WINDOWS.createTarget(["appx"], Arch.x64),
+    config: {
+      appx: {
+        customManifestPath: "custom-template-manifest.xml",
+      },
+      appxManifestCreated: async filepath => {
+        const fileContent = await readFile(filepath, "utf-8")
+        expect(fileContent).toMatchSnapshot()
+      },
+    },
+  })
+)
+
+it(
+  "custom raw appmanifest.xml",
+  app({
+    targets: Platform.WINDOWS.createTarget(["appx"], Arch.x64),
+    config: {
+      appx: {
+        customManifestPath: "custom-manifest.xml",
+      },
+      appxManifestCreated: async filepath => {
+        const fileContent = await readFile(filepath, "utf-8")
+        expect(fileContent).toMatchSnapshot()
       },
     },
   })

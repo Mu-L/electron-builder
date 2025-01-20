@@ -31,7 +31,11 @@ export abstract class DifferentialDownloader {
   private readonly logger: Logger
 
   // noinspection TypeScriptAbstractClassConstructorCanBeMadeProtected
-  constructor(protected readonly blockAwareFileInfo: BlockMapDataHolder, readonly httpExecutor: HttpExecutor<any>, readonly options: DifferentialDownloaderOptions) {
+  constructor(
+    protected readonly blockAwareFileInfo: BlockMapDataHolder,
+    readonly httpExecutor: HttpExecutor<any>,
+    readonly options: DifferentialDownloaderOptions
+  ) {
     this.logger = options.logger
   }
 
@@ -86,7 +90,7 @@ export abstract class DifferentialDownloader {
     const closeFiles = (): Promise<Array<void>> => {
       return Promise.all(
         fdList.map(openedFile => {
-          return close(openedFile.descriptor).catch(e => {
+          return close(openedFile.descriptor).catch((e: any) => {
             this.logger.error(`cannot close file "${openedFile.path}": ${e}`)
           })
         })
@@ -94,7 +98,7 @@ export abstract class DifferentialDownloader {
     }
     return this.doDownloadFile(tasks, fdList)
       .then(closeFiles)
-      .catch(e => {
+      .catch((e: any) => {
         // then must be after catch here (since then always throws error)
         return closeFiles()
           .catch(closeFilesError => {
@@ -104,7 +108,7 @@ export abstract class DifferentialDownloader {
             } catch (errorOnLog) {
               try {
                 console.error(errorOnLog)
-              } catch (ignored) {
+              } catch (_ignored) {
                 // ok, give up and ignore error
               }
             }
@@ -160,7 +164,7 @@ export abstract class DifferentialDownloader {
           fdList.splice(1, 1)
           try {
             digestTransform.validate()
-          } catch (e) {
+          } catch (e: any) {
             reject(e)
             return
           }
@@ -228,6 +232,10 @@ export abstract class DifferentialDownloader {
         }
 
         const request = this.httpExecutor.createRequest(requestOptions, response => {
+          response.on("error", reject)
+          response.on("aborted", () => {
+            reject(new Error("response has been aborted by the server"))
+          })
           // Electron net handles redirects automatically, our NodeJS test server doesn't use redirects - so, we don't check 3xx codes.
           if (response.statusCode >= 400) {
             reject(createHttpError(response))
@@ -286,6 +294,11 @@ export abstract class DifferentialDownloader {
         if (!checkIsRangesSupported(response, reject)) {
           return
         }
+
+        response.on("error", reject)
+        response.on("aborted", () => {
+          reject(new Error("response has been aborted by the server"))
+        })
 
         response.on("data", dataHandler)
         response.on("end", () => resolve())

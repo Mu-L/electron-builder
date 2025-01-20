@@ -1,8 +1,6 @@
 import BluebirdPromise from "bluebird-lst"
-import { Arch, asArray, AsyncTaskManager, debug, DebugLogger, deepAssign, getArchSuffix, InvalidConfigurationError, isEmptyOrSpaces, log, isEnvTrue } from "builder-util"
-import { defaultArchFromString, getArtifactArchName } from "builder-util/out/arch"
-import { FileTransformer, statOrNull } from "builder-util/out/fs"
-import { orIfFileNotExist } from "builder-util/out/promise"
+import { Arch, asArray, AsyncTaskManager, DebugLogger, deepAssign, getArchSuffix, InvalidConfigurationError, isEmptyOrSpaces, log } from "builder-util"
+import { defaultArchFromString, getArtifactArchName, FileTransformer, statOrNull, orIfFileNotExist } from "builder-util"
 import { readdir } from "fs/promises"
 import { Lazy } from "lazy-val"
 import { Minimatch } from "minimatch"
@@ -21,6 +19,7 @@ import {
   Configuration,
   ElectronPlatformName,
   FileAssociation,
+  LinuxPackager,
   Packager,
   PackagerOptions,
   Platform,
@@ -31,6 +30,9 @@ import {
 import { executeAppBuilderAsJson } from "./util/appBuilder"
 import { computeFileSets, computeNodeModuleFileSets, copyAppFiles, ELECTRON_COMPILE_SHIM_FILENAME, transformFiles } from "./util/appFileCopier"
 import { expandMacro as doExpandMacro } from "./util/macroExpander"
+import { resolveFunction } from "./util/resolve"
+import { flipFuses, FuseConfig, FuseV1Config, FuseV1Options, FuseVersion } from "@electron/fuses"
+import { FuseOptionsV1 } from "./configuration"
 
 export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> {
   get packagerOptions(): PackagerOptions {
@@ -59,7 +61,10 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
 
   readonly appInfo: AppInfo
 
-  protected constructor(readonly info: Packager, readonly platform: Platform) {
+  protected constructor(
+    readonly info: Packager,
+    readonly platform: Platform
+  ) {
     this.platformSpecificBuildOptions = PlatformPackager.normalizePlatformSpecificBuildOptions((this.config as any)[platform.buildConfigurationKey])
     this.appInfo = this.prepareAppInfo(info.appInfo)
   }
@@ -90,7 +95,7 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
 
   abstract createTargets(targets: Array<string>, mapper: (name: string, factory: (outDir: string) => Target) => void): void
 
-  protected getCscPassword(): string {
+  getCscPassword(): string {
     const password = this.doGetCscPassword()
     if (isEmptyOrSpaces(password)) {
       log.info({ reason: "CSC_KEY_PASSWORD is not defined" }, "empty password will be used for code signing")
@@ -100,13 +105,13 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
     }
   }
 
-  protected getCscLink(extraEnvName?: string | null): string | null | undefined {
+  getCscLink(extraEnvName?: string | null): string | null | undefined {
     // allow to specify as empty string
     const envValue = chooseNotNull(extraEnvName == null ? null : process.env[extraEnvName], process.env.CSC_LINK)
     return chooseNotNull(chooseNotNull(this.info.config.cscLink, this.platformSpecificBuildOptions.cscLink), envValue)
   }
 
-  protected doGetCscPassword(): string | null | undefined {
+  doGetCscPassword(): string | null | undefined {
     // allow to specify as empty string
     return chooseNotNull(chooseNotNull(this.info.config.cscKeyPassword, this.platformSpecificBuildOptions.cscKeyPassword), process.env.CSC_KEY_PASSWORD)
   }
@@ -150,7 +155,7 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
       await subTaskManager.awaitTasks()
 
       for (const target of targets) {
-        if (!target.isAsyncSupported) {
+        if (!target.isAsyncSupported && !this.info.cancellationToken.cancelled) {
           await target.build(appOutDir, arch)
         }
       }
@@ -169,8 +174,8 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
     const base = isResources
       ? this.getResourcesDir(appOutDir)
       : this.platform === Platform.MAC
-      ? path.join(appOutDir, `${this.appInfo.productFilename}.app`, "Contents")
-      : appOutDir
+        ? path.join(appOutDir, `${this.appInfo.productFilename}.app`, "Contents")
+        : appOutDir
     return getFileMatchers(this.config, isResources ? "extraResources" : "extraFiles", base, options)
   }
 
@@ -201,7 +206,10 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
       return
     }
 
-    const beforePack = resolveFunction(this.config.beforePack, "beforePack")
+    // Due to node-gyp rewriting GYP_MSVS_VERSION when reused across the same session, we must reset the env var: https://github.com/electron-userland/electron-builder/issues/7256
+    delete process.env.GYP_MSVS_VERSION
+
+    const beforePack = await resolveFunction(this.appInfo.type, this.config.beforePack, "beforePack")
     if (beforePack != null) {
       await beforePack({
         appOutDir,
@@ -238,6 +246,18 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
       version: framework.version,
     })
 
+    const afterExtract = await resolveFunction(this.appInfo.type, this.config.afterExtract, "afterExtract")
+    if (afterExtract != null) {
+      await afterExtract({
+        appOutDir,
+        outDir,
+        arch,
+        targets,
+        packager: this,
+        electronPlatformName: platformName,
+      })
+    }
+
     const excludePatterns: Array<Minimatch> = []
 
     const computeParsedPatterns = (patterns: Array<FileMatcher> | null) => {
@@ -269,8 +289,8 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
       this.platform === Platform.MAC
         ? path.join(appOutDir, framework.distMacOsAppName, "Contents", "Resources")
         : isElectronBased(framework)
-        ? path.join(appOutDir, "resources")
-        : appOutDir
+          ? path.join(appOutDir, "resources")
+          : appOutDir
     const taskManager = new AsyncTaskManager(this.info.cancellationToken)
     this.copyAppFiles(taskManager, asarOptions, resourcesPath, path.join(resourcesPath, "app"), packContext, platformSpecificBuildOptions, excludePatterns, macroExpander)
     await taskManager.awaitTasks()
@@ -309,10 +329,75 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
     }
 
     const isAsar = asarOptions != null
-    await this.sanityCheckPackage(appOutDir, isAsar, framework)
+    await this.sanityCheckPackage(appOutDir, isAsar, framework, !!this.config.disableSanityCheckAsar)
+
+    // the fuses MUST be flipped right before signing
+    if (this.config.electronFuses != null) {
+      const fuseConfig = this.generateFuseConfig(this.config.electronFuses)
+      await this.addElectronFuses(packContext, fuseConfig)
+    }
     if (sign) {
       await this.doSignAfterPack(outDir, appOutDir, platformName, arch, platformSpecificBuildOptions, targets)
     }
+  }
+
+  private generateFuseConfig(fuses: FuseOptionsV1): FuseV1Config {
+    const config: FuseV1Config = {
+      version: FuseVersion.V1,
+      resetAdHocDarwinSignature: fuses.resetAdHocDarwinSignature,
+    }
+    // this is annoying, but we must filter out undefined entries because some older electron versions will receive `the fuse wire in this version of Electron is not long enough` even if entry is set undefined
+    if (fuses.runAsNode != null) {
+      config[FuseV1Options.RunAsNode] = fuses.runAsNode
+    }
+    if (fuses.enableCookieEncryption != null) {
+      config[FuseV1Options.EnableCookieEncryption] = fuses.enableCookieEncryption
+    }
+    if (fuses.enableNodeOptionsEnvironmentVariable != null) {
+      config[FuseV1Options.EnableNodeOptionsEnvironmentVariable] = fuses.enableNodeOptionsEnvironmentVariable
+    }
+    if (fuses.enableNodeCliInspectArguments != null) {
+      config[FuseV1Options.EnableNodeCliInspectArguments] = fuses.enableNodeCliInspectArguments
+    }
+    if (fuses.enableEmbeddedAsarIntegrityValidation != null) {
+      config[FuseV1Options.EnableEmbeddedAsarIntegrityValidation] = fuses.enableEmbeddedAsarIntegrityValidation
+    }
+    if (fuses.onlyLoadAppFromAsar != null) {
+      config[FuseV1Options.OnlyLoadAppFromAsar] = fuses.onlyLoadAppFromAsar
+    }
+    if (fuses.loadBrowserProcessSpecificV8Snapshot != null) {
+      config[FuseV1Options.LoadBrowserProcessSpecificV8Snapshot] = fuses.loadBrowserProcessSpecificV8Snapshot
+    }
+    if (fuses.grantFileProtocolExtraPrivileges != null) {
+      config[FuseV1Options.GrantFileProtocolExtraPrivileges] = fuses.grantFileProtocolExtraPrivileges
+    }
+    return config
+  }
+
+  /**
+   * Use `AfterPackContext` here to keep available for public API
+   * @param {AfterPackContext} context
+   * @param {FuseConfig} fuses
+   *
+   * Can be used in `afterPack` hook for custom fuse logic like below. It's an alternative approach if one wants to override electron-builder's @electron/fuses version
+   * ```
+   * await context.packager.addElectronFuses(context, { ... })
+   * ```
+   */
+  public async addElectronFuses(context: AfterPackContext, fuses: FuseConfig) {
+    const { appOutDir, electronPlatformName } = context
+
+    const ext = {
+      darwin: ".app",
+      win32: ".exe",
+      linux: "",
+    }[electronPlatformName]
+
+    const executableName = this instanceof LinuxPackager ? this.executableName : this.appInfo.productFilename
+    const electronBinaryPath = path.join(appOutDir, `${executableName}${ext}`)
+
+    log.info({ electronPath: log.filePath(electronBinaryPath) }, "executing @electron/fuses")
+    return flipFuses(electronBinaryPath, fuses)
   }
 
   protected async doSignAfterPack(outDir: string, appOutDir: string, platformName: ElectronPlatformName, arch: Arch, platformSpecificBuildOptions: DC, targets: Array<Target>) {
@@ -326,10 +411,14 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
       packager: this,
       electronPlatformName: platformName,
     }
-    await this.signApp(packContext, isAsar)
-    const afterSign = resolveFunction(this.config.afterSign, "afterSign")
+    const didSign = await this.signApp(packContext, isAsar)
+    const afterSign = await resolveFunction(this.appInfo.type, this.config.afterSign, "afterSign")
     if (afterSign != null) {
-      await Promise.resolve(afterSign(packContext))
+      if (didSign) {
+        await Promise.resolve(afterSign(packContext))
+      } else {
+        log.warn(null, `skipping "afterSign" hook as no signing occurred, perhaps you intended "afterPack"?`)
+      }
     }
   }
 
@@ -415,15 +504,20 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
             await transformFiles(transformer, fileSet)
           }
 
-          await new AsarPackager(appDir, resourcePath, asarOptions, fileMatcher == null ? null : fileMatcher.createFilter()).pack(fileSets, this)
+          await new AsarPackager(this, {
+            defaultDestination,
+            resourcePath,
+            options: asarOptions,
+            unpackPattern: fileMatcher?.createFilter(),
+          }).pack(fileSets)
         })
       )
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected signApp(packContext: AfterPackContext, isAsar: boolean): Promise<any> {
-    return Promise.resolve()
+  protected signApp(packContext: AfterPackContext, isAsar: boolean): Promise<boolean> {
+    return Promise.resolve(false)
   }
 
   getIconPath(): Promise<string | null> {
@@ -497,10 +591,13 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
     return path.join(appOutDir, `${this.appInfo.productFilename}.app`, "Contents", "Resources")
   }
 
-  private async checkFileInPackage(resourcesDir: string, file: string, messagePrefix: string, isAsar: boolean) {
+  private async checkFileInPackage(resourcesDir: string, file: string, messagePrefix: string, isAsar: boolean, disableSanityCheckAsar: boolean) {
+    if (isAsar && disableSanityCheckAsar) {
+      return
+    }
     const relativeFile = path.relative(this.info.appDir, path.resolve(this.info.appDir, file))
     if (isAsar) {
-      await checkFileInArchive(path.join(resourcesDir, "app.asar"), relativeFile, messagePrefix)
+      checkFileInArchive(path.join(resourcesDir, "app.asar"), relativeFile, messagePrefix)
       return
     }
 
@@ -520,7 +617,7 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
       const asarPath = path.join(...pathSplit.slice(0, partWithAsarIndex + 1))
       let mainPath = pathSplit.length > partWithAsarIndex + 1 ? path.join.apply(pathSplit.slice(partWithAsarIndex + 1)) : ""
       mainPath += path.join(mainPath, pathParsed.base)
-      await checkFileInArchive(path.join(resourcesDir, "app", asarPath), mainPath, messagePrefix)
+      checkFileInArchive(path.join(resourcesDir, "app", asarPath), mainPath, messagePrefix)
     } else {
       const fullPath = path.join(resourcesDir, "app", relativeFile)
       const outStat = await statOrNull(fullPath)
@@ -535,7 +632,7 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
     }
   }
 
-  private async sanityCheckPackage(appOutDir: string, isAsar: boolean, framework: Framework): Promise<any> {
+  private async sanityCheckPackage(appOutDir: string, isAsar: boolean, framework: Framework, disableSanityCheckAsar: boolean): Promise<any> {
     const outStat = await statOrNull(appOutDir)
     if (outStat == null) {
       throw new Error(`Output directory "${appOutDir}" does not exist. Seems like a wrong configuration.`)
@@ -548,8 +645,8 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
 
     const resourcesDir = this.getResourcesDir(appOutDir)
     const mainFile = (framework.getMainFile == null ? null : framework.getMainFile(this.platform)) || this.info.metadata.main || "index.js"
-    await this.checkFileInPackage(resourcesDir, mainFile, "Application entry file", isAsar)
-    await this.checkFileInPackage(resourcesDir, "package.json", "Application", isAsar)
+    await this.checkFileInPackage(resourcesDir, mainFile, "Application entry file", isAsar, disableSanityCheckAsar)
+    await this.checkFileInPackage(resourcesDir, "package.json", "Application", isAsar, disableSanityCheckAsar)
   }
 
   // tslint:disable-next-line:no-invalid-template-strings
@@ -672,6 +769,7 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
 
   // convert if need, validate size (it is a reason why tool is called even if file has target extension (already specified as foo.icns for example))
   async resolveIcon(sources: Array<string>, fallbackSources: Array<string>, outputFormat: IconFormat): Promise<Array<IconInfo>> {
+    const output = this.expandMacro(this.config.directories!.output!)
     const args = [
       "icon",
       "--format",
@@ -681,7 +779,7 @@ export abstract class PlatformPackager<DC extends PlatformSpecificBuildOptions> 
       "--root",
       this.projectDir,
       "--out",
-      path.resolve(this.projectDir, this.config.directories!.output!, `.icon-${outputFormat}`),
+      path.resolve(this.projectDir, output, `.icon-${outputFormat}`),
     ]
     for (const source of sources) {
       args.push("--input", source)
@@ -745,48 +843,10 @@ export function normalizeExt(ext: string) {
   return ext.startsWith(".") ? ext.substring(1) : ext
 }
 
-export function resolveFunction<T>(executor: T | string, name: string): T {
-  if (executor == null || typeof executor !== "string") {
-    return executor
-  }
-
-  let p = executor as string
-  if (p.startsWith(".")) {
-    p = path.resolve(p)
-  }
-
-  try {
-    p = require.resolve(p)
-  } catch (e) {
-    debug(e)
-    p = path.resolve(p)
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const m = require(p)
-  const namedExport = m[name]
-  if (namedExport == null) {
-    return m.default || m
-  } else {
-    return namedExport
-  }
-}
-
-export function chooseNotNull(v1: string | null | undefined, v2: string | null | undefined): string | null | undefined {
+export function chooseNotNull<T>(v1: T | null | undefined, v2: T | null | undefined): T | null | undefined {
   return v1 == null ? v2 : v1
 }
 
 function capitalizeFirstLetter(text: string) {
   return text.charAt(0).toUpperCase() + text.slice(1)
-}
-
-export function isSafeToUnpackElectronOnRemoteBuildServer(packager: PlatformPackager<any>) {
-  if (packager.platform !== Platform.LINUX || packager.config.remoteBuild === false) {
-    return false
-  }
-
-  if (process.platform === "win32" || isEnvTrue(process.env._REMOTE_BUILD)) {
-    return packager.config.electronDist == null && packager.config.electronDownload == null
-  }
-  return false
 }

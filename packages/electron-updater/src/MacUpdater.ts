@@ -1,6 +1,7 @@
 import { AllPublishOptions, newError, safeStringifyJson } from "builder-util-runtime"
-import { stat } from "fs-extra"
+import { pathExistsSync, stat, copyFile } from "fs-extra"
 import { createReadStream } from "fs"
+import * as path from "path"
 import { createServer, IncomingMessage, Server, ServerResponse } from "http"
 import { AppAdapter } from "./AppAdapter"
 import { AppUpdater, DownloadUpdateOptions } from "./AppUpdater"
@@ -26,12 +27,24 @@ export class MacUpdater extends AppUpdater {
     })
     this.nativeUpdater.on("update-downloaded", () => {
       this.squirrelDownloadedUpdate = true
+      this.debug("nativeUpdater.update-downloaded")
     })
   }
 
   private debug(message: string): void {
     if (this._logger.debug != null) {
       this._logger.debug(message)
+    }
+  }
+
+  private closeServerIfExists() {
+    if (this.server) {
+      this.debug("Closing proxy server")
+      this.server.close(err => {
+        if (err) {
+          this.debug("proxy server wasn't already open, probably attempted closing again as a safety check before quit")
+        }
+      })
     }
   }
 
@@ -48,7 +61,7 @@ export class MacUpdater extends AppUpdater {
       const result = execFileSync("sysctl", [sysctlRosettaInfoKey], { encoding: "utf8" })
       isRosetta = result.includes(`${sysctlRosettaInfoKey}: 1`)
       log.info(`Checked for macOS Rosetta environment (isRosetta=${isRosetta})`)
-    } catch (e) {
+    } catch (e: any) {
       log.warn(`sysctl shell command to check for macOS Rosetta environment failed: ${e}`)
     }
 
@@ -59,7 +72,7 @@ export class MacUpdater extends AppUpdater {
       const isArm = result.includes("ARM")
       log.info(`Checked 'uname -a': arm64=${isArm}`)
       isArm64Mac = isArm64Mac || isArm
-    } catch (e) {
+    } catch (e: any) {
       log.warn(`uname shell command to check for arm64 failed: ${e}`)
     }
 
@@ -79,14 +92,42 @@ export class MacUpdater extends AppUpdater {
       throw newError(`ZIP file not provided: ${safeStringifyJson(files)}`, "ERR_UPDATER_ZIP_FILE_NOT_FOUND")
     }
 
+    const provider = downloadUpdateOptions.updateInfoAndProvider.provider
+    const CURRENT_MAC_APP_ZIP_FILE_NAME = "update.zip"
+
     return this.executeDownload({
       fileExtension: "zip",
       fileInfo: zipFileInfo,
       downloadUpdateOptions,
-      task: (destinationFile, downloadOptions) => {
-        return this.httpExecutor.download(zipFileInfo.url, destinationFile, downloadOptions)
+      task: async (destinationFile, downloadOptions) => {
+        const cachedUpdateFilePath = path.join(this.downloadedUpdateHelper!.cacheDir, CURRENT_MAC_APP_ZIP_FILE_NAME)
+        const canDifferentialDownload = () => {
+          if (!pathExistsSync(cachedUpdateFilePath)) {
+            log.info("Unable to locate previous update.zip for differential download (is this first install?), falling back to full download")
+            return false
+          }
+          return !downloadUpdateOptions.disableDifferentialDownload
+        }
+        let differentialDownloadFailed = true
+        if (canDifferentialDownload()) {
+          differentialDownloadFailed = await this.differentialDownloadInstaller(zipFileInfo, downloadUpdateOptions, destinationFile, provider, CURRENT_MAC_APP_ZIP_FILE_NAME)
+        }
+
+        if (differentialDownloadFailed) {
+          await this.httpExecutor.download(zipFileInfo.url, destinationFile, downloadOptions)
+        }
       },
-      done: event => this.updateDownloaded(zipFileInfo, event),
+      done: async event => {
+        if (!downloadUpdateOptions.disableDifferentialDownload) {
+          try {
+            const cachedUpdateFilePath = path.join(this.downloadedUpdateHelper!.cacheDir, CURRENT_MAC_APP_ZIP_FILE_NAME)
+            await copyFile(event.downloadedFile, cachedUpdateFilePath)
+          } catch (error: any) {
+            this._logger.warn(`Unable to copy file for caching for future differential downloads: ${error.message}`)
+          }
+        }
+        return this.updateDownloaded(zipFileInfo, event)
+      },
     })
   }
 
@@ -96,8 +137,8 @@ export class MacUpdater extends AppUpdater {
 
     const log = this._logger
     const logContext = `fileToProxy=${zipFileInfo.url.href}`
+    this.closeServerIfExists()
     this.debug(`Creating proxy server for native Squirrel.Mac (${logContext})`)
-    this.server?.close()
     this.server = createServer()
     this.debug(`Proxy server for native Squirrel.Mac is created (${logContext})`)
     this.server.on("close", () => {
@@ -171,7 +212,7 @@ export class MacUpdater extends AppUpdater {
         readStream.on("error", error => {
           try {
             response.end()
-          } catch (e) {
+          } catch (e: any) {
             log.warn(`cannot end response: ${e}`)
           }
           errorOccurred = true
@@ -212,16 +253,22 @@ export class MacUpdater extends AppUpdater {
     })
   }
 
-  quitAndInstall(): void {
-    this.server?.close()
-    if (this.squirrelDownloadedUpdate) {
-      // update already fetched by Squirrel, it's ready to install
+  private handleUpdateDownloaded() {
+    if (this.autoRunAppAfterInstall) {
       this.nativeUpdater.quitAndInstall()
     } else {
+      this.app.quit()
+    }
+    this.closeServerIfExists()
+  }
+
+  quitAndInstall(): void {
+    if (this.squirrelDownloadedUpdate) {
+      // update already fetched by Squirrel, it's ready to install
+      this.handleUpdateDownloaded()
+    } else {
       // Quit and install as soon as Squirrel get the update
-      this.nativeUpdater.on("update-downloaded", () => {
-        this.nativeUpdater.quitAndInstall()
-      })
+      this.nativeUpdater.on("update-downloaded", () => this.handleUpdateDownloaded())
 
       if (!this.autoInstallOnAppQuit) {
         /**

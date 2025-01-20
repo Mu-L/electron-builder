@@ -1,12 +1,13 @@
-import { Arch, InvalidConfigurationError, isEmptyOrSpaces, isEnvTrue, isTokenCharValid, log } from "builder-util"
+import { Arch, InvalidConfigurationError, isEmptyOrSpaces, isEnvTrue, isTokenCharValid, log, Fields } from "builder-util"
 import { configureRequestOptions, GithubOptions, HttpError, parseJson } from "builder-util-runtime"
-import { Fields } from "builder-util/out/log"
-import { httpExecutor } from "builder-util/out/nodeHttpExecutor"
+import { httpExecutor } from "builder-util"
 import { ClientRequest } from "http"
 import { Lazy } from "lazy-val"
 import * as mime from "mime"
 import { parse as parseUrl, UrlWithStringQuery } from "url"
-import { getCiTag, HttpPublisher, PublishContext, PublishOptions } from "./publisher"
+import { getCiTag } from "./publisher"
+import { HttpPublisher } from "./httpPublisher"
+import { PublishContext, PublishOptions } from "./index"
 
 export interface Release {
   id: number
@@ -37,12 +38,17 @@ export class GitHubPublisher extends HttpPublisher {
 
   private releaseLogFields: Fields | null = null
 
-  constructor(context: PublishContext, private readonly info: GithubOptions, private readonly version: string, private readonly options: PublishOptions = {}) {
+  constructor(
+    context: PublishContext,
+    private readonly info: GithubOptions,
+    private readonly version: string,
+    private readonly options: PublishOptions = {}
+  ) {
     super(context, true)
 
     let token = info.token
-    if (isEmptyOrSpaces(token)) {
-      token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
+    if (isEmptyOrSpaces(token) || process.env.GITHUB_RELEASE_TOKEN) {
+      token = process.env.GITHUB_RELEASE_TOKEN ? process.env.GITHUB_RELEASE_TOKEN : process.env.GH_TOKEN || process.env.GITHUB_TOKEN
       if (isEmptyOrSpaces(token)) {
         throw new InvalidConfigurationError(`GitHub Personal Access Token is not set, neither programmatically, nor using env "GH_TOKEN"`)
       }
@@ -191,19 +197,18 @@ export class GitHubPublisher extends HttpPublisher {
               "Content-Type": mime.getType(fileName) || "application/octet-stream",
               "Content-Length": dataLength,
             },
+            timeout: this.info.timeout || undefined,
           },
           this.token
         ),
         this.context.cancellationToken,
         requestProcessor
       )
-      .catch(e => {
-        if (this.doesErrorMeanAlreadyExists(e)) {
-          return this.overwriteArtifact(fileName, release).then(() => this.doUploadFile(attemptNumber, parsedUrl, fileName, dataLength, requestProcessor, release))
-        }
-
+      .catch((e: any) => {
         if (attemptNumber > 3) {
           return Promise.reject(e)
+        } else if (this.doesErrorMeanAlreadyExists(e)) {
+          return this.overwriteArtifact(fileName, release).then(() => this.doUploadFile(attemptNumber + 1, parsedUrl, fileName, dataLength, requestProcessor, release))
         } else {
           return new Promise((resolve, reject) => {
             const newAttemptNumber = attemptNumber + 1
@@ -228,6 +233,7 @@ export class GitHubPublisher extends HttpPublisher {
   private createRelease() {
     return this.githubRequest<Release>(`/repos/${this.info.owner}/${this.info.repo}/releases`, this.token, {
       tag_name: this.tag,
+      name: this.version,
       draft: this.releaseType === "draft",
       prerelease: this.releaseType === "prerelease",
     })
@@ -249,7 +255,7 @@ export class GitHubPublisher extends HttpPublisher {
     for (let i = 0; i < 3; i++) {
       try {
         return await this.githubRequest(`/repos/${this.info.owner}/${this.info.repo}/releases/${release.id}`, this.token, null, "DELETE")
-      } catch (e) {
+      } catch (e: any) {
         if (e instanceof HttpError) {
           if (e.statusCode === 404) {
             log.warn({ releaseId: release.id, reason: "doesn't exist" }, "cannot delete release")
@@ -278,6 +284,7 @@ export class GitHubPublisher extends HttpPublisher {
             port: baseUrl.port as any,
             path: this.info.host != null && this.info.host !== "github.com" ? `/api/v3${path.startsWith("/") ? path : `/${path}`}` : path,
             headers: { accept: "application/vnd.github.v3+json" },
+            timeout: this.info.timeout || undefined,
           },
           token,
           method

@@ -1,4 +1,4 @@
-import { exists, statOrNull } from "builder-util/out/fs"
+import { exists, statOrNull } from "builder-util"
 import * as fs from "fs/promises"
 import * as path from "path"
 
@@ -61,7 +61,7 @@ class Assertions {
     let result: any
     try {
       result = await this.actual
-    } catch (e) {
+    } catch (e: any) {
       actualError = e
     }
 

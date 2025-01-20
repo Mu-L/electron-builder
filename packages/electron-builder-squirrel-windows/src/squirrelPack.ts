@@ -1,6 +1,4 @@
-import { path7za } from "7zip-bin"
-import { Arch, debug, exec, log, spawn, isEmptyOrSpaces } from "builder-util"
-import { copyFile, walk } from "builder-util/out/fs"
+import { Arch, debug, exec, log, spawn, isEmptyOrSpaces, getPath7za, copyFile, walk } from "builder-util"
 import { compute7zCompressArgs } from "app-builder-lib/out/targets/archive"
 import { execWine, prepareWindowsExecutableArgs as prepareArgs } from "app-builder-lib/out/wine"
 import { WinPackager } from "app-builder-lib/out/winPackager"
@@ -53,7 +51,11 @@ export interface OutFileNames {
 }
 
 export class SquirrelBuilder {
-  constructor(private readonly options: SquirrelOptions, private readonly outputDirectory: string, private readonly packager: WinPackager) {}
+  constructor(
+    private readonly options: SquirrelOptions,
+    private readonly outputDirectory: string,
+    private readonly packager: WinPackager
+  ) {}
 
   async buildInstaller(outFileNames: OutFileNames, appOutDir: string, outDir: string, arch: Arch) {
     const packager = this.packager
@@ -126,6 +128,7 @@ export class SquirrelBuilder {
 
   private async createEmbeddedArchiveFile(nupkgPath: string, dirToArchive: string) {
     const embeddedArchiveFile = await this.packager.getTempFile("setup.zip")
+    const path7za = await getPath7za()
     await exec(
       path7za,
       compute7zCompressArgs("zip", {
@@ -228,11 +231,11 @@ async function pack(options: SquirrelOptions, directory: string, updateFile: str
   await archivePromise
 }
 
-function execSw(options: SquirrelOptions, args: Array<string>) {
+async function execSw(options: SquirrelOptions, args: Array<string>) {
   return exec(process.platform === "win32" ? path.join(options.vendorPath, "Update.com") : "mono", prepareArgs(args, path.join(options.vendorPath, "Update-Mono.exe")), {
     env: {
       ...process.env,
-      SZA_PATH: path7za,
+      SZA_PATH: await getPath7za(),
     },
   })
 }
@@ -253,7 +256,7 @@ async function msi(options: SquirrelOptions, nupkgPath: string, setupPath: strin
   await Promise.all([
     unlink(path.join(outputDirectory, "Setup.wxs")),
     unlink(path.join(outputDirectory, "Setup.wixobj")),
-    unlink(path.join(outputDirectory, outFile.replace(".msi", ".wixpdb"))).catch(e => debug(e.toString())),
+    unlink(path.join(outputDirectory, outFile.replace(".msi", ".wixpdb"))).catch((e: any) => debug(e.toString())),
   ])
 }
 

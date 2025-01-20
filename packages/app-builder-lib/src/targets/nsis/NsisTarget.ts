@@ -1,8 +1,20 @@
-import { path7za } from "7zip-bin"
 import BluebirdPromise from "bluebird-lst"
-import { Arch, asArray, AsyncTaskManager, exec, executeAppBuilder, getPlatformIconFileName, InvalidConfigurationError, log, spawnAndWrite, use } from "builder-util"
+import {
+  Arch,
+  asArray,
+  AsyncTaskManager,
+  exec,
+  executeAppBuilder,
+  getPlatformIconFileName,
+  InvalidConfigurationError,
+  log,
+  spawnAndWrite,
+  use,
+  getPath7za,
+  getArchSuffix,
+} from "builder-util"
 import { CURRENT_APP_INSTALLER_FILE_NAME, CURRENT_APP_PACKAGE_FILE_NAME, PackageFileInfo, UUID } from "builder-util-runtime"
-import { exists, statOrNull, walk } from "builder-util/out/fs"
+import { exists, statOrNull, walk } from "builder-util"
 import _debug from "debug"
 import * as fs from "fs"
 import { readFile, stat, unlink } from "fs-extra"
@@ -10,7 +22,7 @@ import * as path from "path"
 import { getBinFromUrl } from "../../binDownload"
 import { Target } from "../../core"
 import { DesktopShortcutCreationPolicy, getEffectiveOptions } from "../../options/CommonWindowsInstallerConfiguration"
-import { computeSafeArtifactNameIfNeeded, normalizeExt } from "../../platformPackager"
+import { chooseNotNull, computeSafeArtifactNameIfNeeded, normalizeExt } from "../../platformPackager"
 import { hashFile } from "../../util/hash"
 import { isMacOsCatalina } from "../../util/macosVersion"
 import { time } from "../../util/timer"
@@ -18,7 +30,9 @@ import { execWine } from "../../wine"
 import { WinPackager } from "../../winPackager"
 import { archive, ArchiveOptions } from "../archive"
 import { appendBlockmap, configureDifferentialAwareArchiveOptions, createBlockmap, createNsisWebDifferentialUpdateInfo } from "../differentialUpdateInfoBuilder"
-import { getWindowsInstallationDirName } from "../targetUtil"
+import { getWindowsInstallationAppPackageName, getWindowsInstallationDirName } from "../targetUtil"
+import { Commands } from "./Commands"
+import { Defines } from "./Defines"
 import { addCustomMessageFileInclude, createAddLangsMacro, LangConfigurator } from "./nsisLang"
 import { computeLicensePage } from "./nsisLicense"
 import { NsisOptions, PortableOptions } from "./nsisOptions"
@@ -40,8 +54,14 @@ export class NsisTarget extends Target {
 
   /** @private */
   readonly archs: Map<Arch, string> = new Map()
+  readonly isAsyncSupported = false
 
-  constructor(readonly packager: WinPackager, readonly outDir: string, targetName: string, protected readonly packageHelper: AppPackageHelper) {
+  constructor(
+    readonly packager: WinPackager,
+    readonly outDir: string,
+    targetName: string,
+    protected readonly packageHelper: AppPackageHelper
+  ) {
     super(targetName)
 
     this.packageHelper.refCount++
@@ -66,12 +86,20 @@ export class NsisTarget extends Target {
     NsisTargetOptions.resolve(this.options)
   }
 
+  get shouldBuildUniversalInstaller() {
+    const buildSeparateInstallers = this.options.buildUniversalInstaller === false
+    return !buildSeparateInstallers
+  }
+
   build(appOutDir: string, arch: Arch) {
     this.archs.set(arch, appOutDir)
+    if (!this.shouldBuildUniversalInstaller) {
+      return this.buildInstaller(new Map<Arch, string>().set(arch, appOutDir))
+    }
     return Promise.resolve()
   }
 
-  get isBuildDifferentialAware() {
+  get isBuildDifferentialAware(): boolean {
     return !this.isPortable && this.options.differentialPackage !== false
   }
 
@@ -110,18 +138,23 @@ export class NsisTarget extends Target {
     }
   }
 
-  protected get installerFilenamePattern(): string {
-    // tslint:disable:no-invalid-template-strings
-    return "${productName} " + (this.isPortable ? "" : "Setup ") + "${version}.${ext}"
+  protected installerFilenamePattern(primaryArch?: Arch | null, defaultArch?: string): string {
+    const setupText = this.isPortable ? "" : "Setup "
+    const archSuffix = !this.shouldBuildUniversalInstaller && primaryArch != null ? getArchSuffix(primaryArch, defaultArch) : ""
+
+    return "${productName} " + setupText + "${version}" + archSuffix + ".${ext}"
   }
 
-  private get isPortable() {
+  private get isPortable(): boolean {
     return this.name === "portable"
   }
 
   async finishBuild(): Promise<any> {
+    if (!this.shouldBuildUniversalInstaller) {
+      return this.packageHelper.finishBuild()
+    }
     try {
-      const { pattern } = this.packager.artifactPatternConfig(this.options, this.installerFilenamePattern)
+      const { pattern } = this.packager.artifactPatternConfig(this.options, this.installerFilenamePattern())
       const builds = new Set([this.archs])
       if (pattern.includes("${arch}") && this.archs.size > 1) {
         ;[...this.archs].forEach(([arch, appOutDir]) => builds.add(new Map().set(arch, appOutDir)))
@@ -136,18 +169,12 @@ export class NsisTarget extends Target {
   }
 
   private async buildInstaller(archs: Map<Arch, string>): Promise<any> {
-    const primaryArch = archs.size === 1 ? archs.keys().next().value : null
+    const primaryArch: Arch | null = archs.size === 1 ? (archs.keys().next().value ?? null) : null
     const packager = this.packager
     const appInfo = packager.appInfo
     const options = this.options
-    const installerFilename = packager.expandArtifactNamePattern(
-      options,
-      "exe",
-      primaryArch,
-      this.installerFilenamePattern,
-      false,
-      this.packager.platformSpecificBuildOptions.defaultArch
-    )
+    const defaultArch = chooseNotNull(this.packager.platformSpecificBuildOptions.defaultArch, this.packager.config.defaultArch) ?? undefined
+    const installerFilename = packager.expandArtifactNamePattern(options, "exe", primaryArch, this.installerFilenamePattern(primaryArch, defaultArch), false, defaultArch)
     const oneClick = options.oneClick !== false
     const installerPath = path.join(this.outDir, installerFilename)
 
@@ -159,6 +186,7 @@ export class NsisTarget extends Target {
         .join(", "),
     }
     const isPerMachine = options.perMachine === true
+
     if (!this.isPortable) {
       logFields.oneClick = oneClick
       logFields.perMachine = isPerMachine
@@ -175,7 +203,7 @@ export class NsisTarget extends Target {
 
     const guid = options.guid || UUID.v5(appInfo.id, ELECTRON_BUILDER_NS_UUID)
     const uninstallAppKey = guid.replace(/\\/g, " - ")
-    const defines: any = {
+    const defines: Defines = {
       APP_ID: appInfo.id,
       APP_GUID: guid,
       // Windows bug - entry in Software\Microsoft\Windows\CurrentVersion\Uninstall cannot have \ symbols (dir)
@@ -189,16 +217,16 @@ export class NsisTarget extends Target {
       PROJECT_DIR: packager.projectDir,
       BUILD_RESOURCES_DIR: packager.info.buildResourcesDir,
 
-      APP_PACKAGE_NAME: appInfo.name,
+      APP_PACKAGE_NAME: getWindowsInstallationAppPackageName(appInfo.name),
     }
-    if (options.debugLogging) {
-      defines.ENABLE_LOGGING = null
+    if (options.customNsisBinary?.debugLogging) {
+      defines.ENABLE_LOGGING_ELECTRON_BUILDER = null
     }
     if (uninstallAppKey !== guid) {
       defines.UNINSTALL_REGISTRY_KEY_2 = `Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${guid}`
     }
 
-    const commands: any = {
+    const commands: Commands = {
       OutFile: `"${installerPath}"`,
       VIProductVersion: appInfo.getVersionInWeirdWindowsForm(),
       VIAddVersionKey: this.computeVersionKey(),
@@ -223,22 +251,31 @@ export class NsisTarget extends Target {
         defines[arch === Arch.x64 ? "APP_DIR_64" : arch === Arch.arm64 ? "APP_DIR_ARM64" : "APP_DIR_32"] = dir
       }
     } else if (USE_NSIS_BUILT_IN_COMPRESSOR && archs.size === 1) {
-      defines.APP_BUILD_DIR = archs.get(archs.keys().next().value)
+      const value: Arch | undefined = archs.keys().next().value
+      use(value, v => (defines.APP_BUILD_DIR = archs.get(v)))
     } else {
       await BluebirdPromise.map(archs.keys(), async arch => {
-        const fileInfo = await this.packageHelper.packArch(arch, this)
+        const { fileInfo, unpackedSize } = await this.packageHelper.packArch(arch, this)
         const file = fileInfo.path
         const defineKey = arch === Arch.x64 ? "APP_64" : arch === Arch.arm64 ? "APP_ARM64" : "APP_32"
         defines[defineKey] = file
-        defines[`${defineKey}_NAME`] = path.basename(file)
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+        const defineNameKey = `${defineKey}_NAME` as "APP_64_NAME" | "APP_ARM64_NAME" | "APP_32_NAME"
+        defines[defineNameKey] = path.basename(file)
         // nsis expect a hexadecimal string
-        defines[`${defineKey}_HASH`] = Buffer.from(fileInfo.sha512, "base64").toString("hex").toUpperCase()
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+        const defineHashKey = `${defineKey}_HASH` as "APP_64_HASH" | "APP_ARM64_HASH" | "APP_32_HASH"
+        defines[defineHashKey] = Buffer.from(fileInfo.sha512, "base64").toString("hex").toUpperCase()
+        // NSIS accepts size in KiloBytes and supports only whole numbers
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+        const defineUnpackedSizeKey = `${defineKey}_UNPACKED_SIZE` as "APP_64_UNPACKED_SIZE" | "APP_ARM64_UNPACKED_SIZE" | "APP_32_UNPACKED_SIZE"
+        defines[defineUnpackedSizeKey] = Math.ceil(unpackedSize / 1024).toString()
 
         if (this.isWebInstaller) {
           await packager.dispatchArtifactCreated(file, this, arch)
           packageFiles[Arch[arch]] = fileInfo
         }
-
+        const path7za = await getPath7za()
         const archiveInfo = (await exec(path7za, ["l", file])).trim()
         // after adding blockmap data will be "Warnings: 1" in the end of output
         const match = /(\d+)\s+\d+\s+\d+\s+files/.exec(archiveInfo)
@@ -292,8 +329,8 @@ export class NsisTarget extends Target {
     }
 
     // prepare short-version variants of defines and commands, to make an uninstaller that doesn't differ much from the previous one
-    const definesUninstaller: any = { ...defines }
-    const commandsUninstaller: any = { ...commands }
+    const definesUninstaller = { ...defines }
+    const commandsUninstaller = { ...commands }
     if (appInfo.shortVersion != null) {
       definesUninstaller.VERSION = appInfo.shortVersion
       commandsUninstaller.VIProductVersion = appInfo.shortVersionWindows
@@ -311,7 +348,7 @@ export class NsisTarget extends Target {
     await this.executeMakensis(defines, commands, sharedHeader + (await this.computeFinalScript(script, true, archs)))
     await Promise.all<any>([packager.sign(installerPath), defines.UNINSTALLER_OUT_FILE == null ? Promise.resolve() : unlink(defines.UNINSTALLER_OUT_FILE)])
 
-    const safeArtifactName = computeSafeArtifactNameIfNeeded(installerFilename, () => this.generateGitHubInstallerName())
+    const safeArtifactName = computeSafeArtifactNameIfNeeded(installerFilename, () => this.generateGitHubInstallerName(primaryArch, defaultArch))
     let updateInfo: any
     if (this.isWebInstaller) {
       updateInfo = createNsisWebDifferentialUpdateInfo(installerPath, packageFiles)
@@ -319,7 +356,7 @@ export class NsisTarget extends Target {
       updateInfo = await createBlockmap(installerPath, this, packager, safeArtifactName)
     }
 
-    if (updateInfo != null && isPerMachine && oneClick) {
+    if (updateInfo != null && isPerMachine && (oneClick || options.packElevateHelper)) {
       updateInfo.isAdminRightsRequired = true
     }
 
@@ -334,13 +371,14 @@ export class NsisTarget extends Target {
     })
   }
 
-  protected generateGitHubInstallerName() {
+  protected generateGitHubInstallerName(primaryArch: Arch | null, defaultArch: string | undefined): string {
     const appInfo = this.packager.appInfo
     const classifier = appInfo.name.toLowerCase() === appInfo.name ? "setup-" : "Setup-"
-    return `${appInfo.name}-${this.isPortable ? "" : classifier}${appInfo.version}.exe`
+    const archSuffix = !this.shouldBuildUniversalInstaller && primaryArch != null ? getArchSuffix(primaryArch, defaultArch) : ""
+    return `${appInfo.name}-${this.isPortable ? "" : classifier}${appInfo.version}${archSuffix}.exe`
   }
 
-  private get isUnicodeEnabled() {
+  private get isUnicodeEnabled(): boolean {
     return this.options.unicode !== false
   }
 
@@ -348,7 +386,7 @@ export class NsisTarget extends Target {
     return false
   }
 
-  private async computeScriptAndSignUninstaller(defines: any, commands: any, installerPath: string, sharedHeader: string, archs: Map<Arch, string>) {
+  private async computeScriptAndSignUninstaller(defines: Defines, commands: Commands, installerPath: string, sharedHeader: string, archs: Map<Arch, string>): Promise<string> {
     const packager = this.packager
     const customScriptPath = await packager.getResource(this.options.script, "installer.nsi")
     const script = await readFile(customScriptPath || path.join(nsisTemplatesDir, "installer.nsi"), "utf8")
@@ -370,7 +408,7 @@ export class NsisTarget extends Target {
     if (isMacOsCatalina()) {
       try {
         await UninstallerReader.exec(installerPath, uninstallerPath)
-      } catch (error) {
+      } catch (error: any) {
         log.warn(`packager.vm is used: ${error.message}`)
 
         const vm = await packager.vm.value
@@ -379,14 +417,13 @@ export class NsisTarget extends Target {
         let i = 0
         while (!(await exists(uninstallerPath)) && i++ < 100) {
           // noinspection JSUnusedLocalSymbols
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           await new Promise((resolve, _reject) => setTimeout(resolve, 300))
         }
       }
     } else {
       await execWine(installerPath, null, [], { env: { __COMPAT_LAYER: "RunAsInvoker" } })
     }
-    await packager.sign(uninstallerPath, "  Signing NSIS uninstaller")
+    await packager.sign(uninstallerPath)
 
     delete defines.BUILD_UNINSTALLER
     // platform-specific path, not wine
@@ -415,7 +452,7 @@ export class NsisTarget extends Target {
     return versionKey
   }
 
-  protected configureDefines(oneClick: boolean, defines: any): Promise<any> {
+  protected configureDefines(oneClick: boolean, defines: Defines): Promise<any> {
     const packager = this.packager
     const options = this.options
 
@@ -463,6 +500,10 @@ export class NsisTarget extends Target {
       defines.INSTALL_MODE_PER_ALL_USERS = null
     }
 
+    if (options.selectPerMachineByDefault === true) {
+      defines.INSTALL_MODE_PER_ALL_USERS_DEFAULT = null
+    }
+
     if (!oneClick || options.perMachine === true) {
       defines.INSTALL_MODE_PER_ALL_USERS_REQUIRED = null
     }
@@ -472,6 +513,10 @@ export class NsisTarget extends Target {
         throw new InvalidConfigurationError("allowToChangeInstallationDirectory makes sense only for assisted installer (please set oneClick to false)")
       }
       defines.allowToChangeInstallationDirectory = null
+    }
+
+    if (options.removeDefaultUninstallWelcomePage) {
+      defines.removeDefaultUninstallWelcomePage = null
     }
 
     const commonOptions = getEffectiveOptions(options, packager)
@@ -513,7 +558,7 @@ export class NsisTarget extends Target {
     return asyncTaskManager.awaitTasks()
   }
 
-  private configureDefinesForAllTypeOfInstaller(defines: any) {
+  private configureDefinesForAllTypeOfInstaller(defines: Defines): void {
     const appInfo = this.packager.appInfo
     const companyName = appInfo.companyName
     if (companyName != null) {
@@ -541,11 +586,11 @@ export class NsisTarget extends Target {
     }
   }
 
-  private async executeMakensis(defines: any, commands: any, script: string) {
+  private async executeMakensis(defines: Defines, commands: Commands, script: string): Promise<void> {
     const args: Array<string> = this.options.warningsAsErrors === false ? [] : ["-WX"]
     args.push("-INPUTCHARSET", "UTF8")
     for (const name of Object.keys(defines)) {
-      const value = defines[name]
+      const value: any = defines[name as keyof Defines]
       if (value == null) {
         args.push(`-D${name}`)
       } else {
@@ -554,7 +599,7 @@ export class NsisTarget extends Target {
     }
 
     for (const name of Object.keys(commands)) {
-      const value = commands[name]
+      const value = commands[name as keyof Commands]
       if (Array.isArray(value)) {
         for (const c of value) {
           args.push(`-X${name} ${c}`)
@@ -590,7 +635,7 @@ export class NsisTarget extends Target {
     })
   }
 
-  private async computeCommonInstallerScriptHeader() {
+  private async computeCommonInstallerScriptHeader(): Promise<string> {
     const packager = this.packager
     const options = this.options
     const scriptGenerator = new NsisScriptGenerator()
@@ -639,7 +684,7 @@ export class NsisTarget extends Target {
     return scriptGenerator.build()
   }
 
-  private async computeFinalScript(originalScript: string, isInstaller: boolean, archs: Map<Arch, string>) {
+  private async computeFinalScript(originalScript: string, isInstaller: boolean, archs: Map<Arch, string>): Promise<string> {
     const packager = this.packager
     const options = this.options
     const langConfigurator = new LangConfigurator(options)
@@ -702,7 +747,7 @@ export class NsisTarget extends Target {
   }
 }
 
-async function generateForPreCompressed(preCompressedFileExtensions: Array<string>, dir: string, arch: Arch, scriptGenerator: NsisScriptGenerator) {
+async function generateForPreCompressed(preCompressedFileExtensions: Array<string>, dir: string, arch: Arch, scriptGenerator: NsisScriptGenerator): Promise<void> {
   const resourcesDir = path.join(dir, "resources")
   const dirInfo = await statOrNull(resourcesDir)
   if (dirInfo == null || !dirInfo.isDirectory()) {
@@ -727,7 +772,7 @@ async function generateForPreCompressed(preCompressedFileExtensions: Array<strin
   }
 }
 
-async function ensureNotBusy(outFile: string) {
+async function ensureNotBusy(outFile: string): Promise<void> {
   function isBusy(wasBusyBefore: boolean): Promise<boolean> {
     return new Promise((resolve, reject) => {
       fs.open(outFile, "r+", (error, fd) => {
@@ -742,7 +787,7 @@ async function ensureNotBusy(outFile: string) {
           } else {
             fs.close(fd, () => resolve(true))
           }
-        } catch (error) {
+        } catch (error: any) {
           reject(error)
         }
       })

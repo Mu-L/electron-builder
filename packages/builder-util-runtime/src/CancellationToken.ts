@@ -52,7 +52,7 @@ export class CancellationToken extends EventEmitter {
         try {
           this.removeListener("cancel", cancelHandler)
           cancelHandler = null
-        } catch (ignore) {
+        } catch (_ignore) {
           // ignore
         }
       }
@@ -88,7 +88,7 @@ export class CancellationToken extends EventEmitter {
         finallyHandler()
         return it
       })
-      .catch(e => {
+      .catch((e: any) => {
         finallyHandler()
         throw e
       })

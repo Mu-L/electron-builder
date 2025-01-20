@@ -19,6 +19,16 @@ test.ifNotCiMac(
         win: {
           legalTrademarks: "My Trademark",
         },
+        electronFuses: {
+          runAsNode: true,
+          enableCookieEncryption: true,
+          enableNodeOptionsEnvironmentVariable: true,
+          enableNodeCliInspectArguments: true,
+          enableEmbeddedAsarIntegrityValidation: true,
+          onlyLoadAppFromAsar: true,
+          loadBrowserProcessSpecificV8Snapshot: true,
+          grantFileProtocolExtraPrivileges: undefined, // unsupported on current electron version in our tests
+        },
       },
     },
     {
@@ -127,8 +137,8 @@ test.skip.ifNotCiMac(
           url: "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.2/nsis-3.0.4.2.7z",
           version: "3.0.4.2",
           checksum: "o+YZsXHp8LNihhuk7JsCDhdIgx0MKKK+1b3sGD+4zX5djZULe4/4QMcAsfQ+0r+a8FnwBt7BVBHkIkJHjKQ0sg==",
+          debugLogging: true,
         },
-        debugLogging: true,
       },
     },
   })
@@ -142,6 +152,20 @@ test.ifNotCiMac(
       nsis: {
         oneClick: false,
         perMachine: true,
+      },
+    },
+  })
+)
+
+test.ifNotCiMac(
+  "assisted, only perMachine and elevated",
+  app({
+    targets: nsisTarget,
+    config: {
+      nsis: {
+        oneClick: false,
+        perMachine: true,
+        packElevateHelper: true,
       },
     },
   })

@@ -32,7 +32,9 @@ test(
       targets: Platform.WINDOWS.createTarget(["nsis"], Arch.x64),
       config: {
         win: {
-          publisherName: "Foo, Inc",
+          signtoolOptions: {
+            publisherName: "Foo, Inc",
+          },
         },
         publish: {
           provider: "generic",
@@ -42,6 +44,16 @@ test(
         nsis: {
           deleteAppDataOnUninstall: true,
           packElevateHelper: false,
+        },
+        electronFuses: {
+          runAsNode: true,
+          enableCookieEncryption: true,
+          enableNodeOptionsEnvironmentVariable: true,
+          enableNodeCliInspectArguments: true,
+          enableEmbeddedAsarIntegrityValidation: true,
+          onlyLoadAppFromAsar: true,
+          loadBrowserProcessSpecificV8Snapshot: true,
+          grantFileProtocolExtraPrivileges: undefined, // unsupported on current electron version in our tests
         },
       },
     },
@@ -332,6 +344,32 @@ test.skip.ifWindows(
       win: {
         executableName: "Boo",
       },
+      electronFuses: {
+        runAsNode: true,
+        enableCookieEncryption: true,
+        enableNodeOptionsEnvironmentVariable: true,
+        enableNodeCliInspectArguments: true,
+        enableEmbeddedAsarIntegrityValidation: true,
+        onlyLoadAppFromAsar: true,
+        loadBrowserProcessSpecificV8Snapshot: true,
+        grantFileProtocolExtraPrivileges: undefined, // unsupported on current electron version in our tests
+      },
+    },
+    effectiveOptionComputed: async it => {
+      expect(pickSnapshotDefines(it[0])).toMatchSnapshot()
+      return false
+    },
+  })
+)
+
+test.skip.ifWindows(
+  "top-level custom exec name",
+  app({
+    targets: nsisTarget,
+    config: {
+      publish: null,
+      productName: "foo",
+      executableName: "Boo",
     },
     effectiveOptionComputed: async it => {
       expect(pickSnapshotDefines(it[0])).toMatchSnapshot()

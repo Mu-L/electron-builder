@@ -1,5 +1,4 @@
-import { debug, log, deepAssign } from "builder-util"
-import { FileTransformer } from "builder-util/out/fs"
+import { debug, log, deepAssign, FileTransformer } from "builder-util"
 import { readFile } from "fs/promises"
 import * as path from "path"
 import { Configuration } from "./configuration"
@@ -44,7 +43,7 @@ export function createTransformer(srcDir: string, configuration: Configuration, 
             isRemovePackageKeywords,
           })
         )
-        .catch(e => log.warn(e))
+        .catch((e: any) => log.warn(e))
     } else if (extraTransformer != null) {
       return extraTransformer(file)
     } else {
@@ -99,7 +98,7 @@ function cleanupPackageJson(data: any, options: CleanupPackageFileOptions): any 
     if (changed) {
       return JSON.stringify(data, null, 2)
     }
-  } catch (e) {
+  } catch (e: any) {
     debug(e)
   }
 

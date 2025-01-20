@@ -1,11 +1,11 @@
 import BluebirdPromise from "bluebird-lst"
 import { asArray, getPlatformIconFileName, InvalidConfigurationError, log } from "builder-util"
-import { copyOrLinkFile, unlinkIfExists } from "builder-util/out/fs"
+import { copyOrLinkFile, unlinkIfExists } from "builder-util"
 import { rename, utimes } from "fs/promises"
 import * as path from "path"
 import { filterCFBundleIdentifier } from "../appInfo"
 import { AsarIntegrity } from "../asar/integrity"
-import MacPackager from "../macPackager"
+import { MacPackager } from "../macPackager"
 import { normalizeExt } from "../platformPackager"
 import { executeAppBuilderAndWriteJson, executeAppBuilderAsJson } from "../util/appBuilder"
 import { createBrandingOpts } from "./ElectronFramework"
@@ -50,7 +50,10 @@ function getAvailableHelperSuffixes(
 /** @internal */
 export async function createMacApp(packager: MacPackager, appOutDir: string, asarIntegrity: AsarIntegrity | null, isMas: boolean) {
   const appInfo = packager.appInfo
-  const appFilename = appInfo.productFilename
+  // Electon uses the application name (CFBundleName) to resolve helper apps
+  // https://github.com/electron/electron/blob/main/shell/app/electron_main_delegate_mac.mm
+  // https://github.com/electron-userland/electron-builder/issues/6962
+  const appFilename = appInfo.sanitizedProductName
   const electronBranding = createBrandingOpts(packager.config)
 
   const contentsPath = path.join(appOutDir, packager.info.framework.distMacOsAppName, "Contents")
@@ -99,11 +102,6 @@ export async function createMacApp(packager: MacPackager, appOutDir: string, asa
   const helperGPUPlist = plistContent[6]
   const helperLoginPlist = plistContent[7]
 
-  // if an extend-info file was supplied, copy its contents in first
-  if (plistContent[8] != null) {
-    Object.assign(appPlist, plistContent[8])
-  }
-
   const buildMetadata = packager.config
 
   /**
@@ -117,7 +115,16 @@ export async function createMacApp(packager: MacPackager, appOutDir: string, asa
   if (oldHelperBundleId != null) {
     log.warn("build.helper-bundle-id is deprecated, please set as build.mac.helperBundleId")
   }
-  const helperBundleIdentifier = filterCFBundleIdentifier(packager.platformSpecificBuildOptions.helperBundleId || oldHelperBundleId || `${appInfo.macBundleIdentifier}.helper`)
+
+  const defaultAppId = packager.platformSpecificBuildOptions.appId
+  const cfBundleIdentifier = filterCFBundleIdentifier((isMas ? packager.config.mas?.appId : defaultAppId) || defaultAppId || appInfo.macBundleIdentifier)
+
+  const defaultHelperId = packager.platformSpecificBuildOptions.helperBundleId
+  const helperBundleIdentifier = filterCFBundleIdentifier(
+    (isMas ? packager.config.mas?.helperBundleId : defaultHelperId) || defaultHelperId || oldHelperBundleId || `${cfBundleIdentifier}.helper`
+  )
+
+  appPlist.CFBundleIdentifier = cfBundleIdentifier
 
   await packager.applyCommonInfo(appPlist, contentsPath)
 
@@ -168,7 +175,7 @@ export async function createMacApp(packager: MacPackager, appOutDir: string, asa
     helperLoginPlist.CFBundleExecutable = `${appFilename} Login Helper`
     helperLoginPlist.CFBundleDisplayName = `${appInfo.productName} Login Helper`
     // noinspection SpellCheckingInspection
-    helperLoginPlist.CFBundleIdentifier = `${appInfo.macBundleIdentifier}.loginhelper`
+    helperLoginPlist.CFBundleIdentifier = `${cfBundleIdentifier}.loginhelper`
     helperLoginPlist.CFBundleVersion = appPlist.CFBundleVersion
   }
 
@@ -189,7 +196,7 @@ export async function createMacApp(packager: MacPackager, appOutDir: string, asa
 
   const fileAssociations = packager.fileAssociations
   if (fileAssociations.length > 0) {
-    appPlist.CFBundleDocumentTypes = await BluebirdPromise.map(fileAssociations, async fileAssociation => {
+    const documentTypes = await BluebirdPromise.map(fileAssociations, async fileAssociation => {
       const extensions = asArray(fileAssociation.ext).map(normalizeExt)
       const customIcon = await packager.getResource(getPlatformIconFileName(fileAssociation.icon, true), `${extensions[0]}.icns`)
       let iconFile = appPlist.CFBundleIconFile
@@ -211,6 +218,9 @@ export async function createMacApp(packager: MacPackager, appOutDir: string, asa
       }
       return result
     })
+
+    // `CFBundleDocumentTypes` may be defined in `mac.extendInfo`, so we need to merge it in that case
+    appPlist.CFBundleDocumentTypes = [...(appPlist.CFBundleDocumentTypes || []), ...documentTypes]
   }
 
   if (asarIntegrity != null) {
@@ -261,7 +271,7 @@ export async function createMacApp(packager: MacPackager, appOutDir: string, asa
     await doRename(executableBasePath, `${prefix}${suffix}`, appFilename + suffix).then(() => doRename(loginItemPath, `${prefix}${suffix}.app`, `${appFilename}${suffix}.app`))
   }
 
-  const appPath = path.join(appOutDir, `${appFilename}.app`)
+  const appPath = path.join(appOutDir, `${appInfo.productFilename}.app`)
   await rename(path.dirname(contentsPath), appPath)
   // https://github.com/electron-userland/electron-builder/issues/840
   const now = Date.now() / 1000

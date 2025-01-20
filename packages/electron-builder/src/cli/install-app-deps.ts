@@ -1,16 +1,15 @@
 #! /usr/bin/env node
 
-import { PACKAGE_VERSION } from "app-builder-lib/out/version"
-import { log, use, getArchCliNames } from "builder-util"
-import { printErrorAndExit } from "builder-util/out/promise"
-import { computeDefaultAppDirectory, getConfig } from "app-builder-lib/out/util/config"
 import { getElectronVersion } from "app-builder-lib/out/electron/electronVersion"
-import { createLazyProductionDeps } from "app-builder-lib/out/util/packageDependencies"
+import { computeDefaultAppDirectory, getConfig } from "app-builder-lib/out/util/config/config"
 import { installOrRebuild } from "app-builder-lib/out/util/yarn"
+import { PACKAGE_VERSION } from "app-builder-lib/out/version"
+import { createLazyProductionDeps } from "app-builder-lib/out/util/packageDependencies"
+import { getArchCliNames, log, use, printErrorAndExit } from "builder-util"
 import { readJson } from "fs-extra"
 import { Lazy } from "lazy-val"
 import * as path from "path"
-import { orNullIfFileNotExist } from "read-config-file"
+import { orNullIfFileNotExist } from "app-builder-lib/out/util/config/load"
 import * as yargs from "yargs"
 
 /** @internal */
@@ -37,7 +36,7 @@ export function configureInstallAppDepsCommand(yargs: yargs.Argv): yargs.Argv {
 export async function installAppDeps(args: any) {
   try {
     log.info({ version: PACKAGE_VERSION }, "electron-builder")
-  } catch (e) {
+  } catch (e: any) {
     // error in dev mode without babel
     if (!(e instanceof ReferenceError)) {
       throw e
@@ -50,9 +49,9 @@ export async function installAppDeps(args: any) {
   const [appDir, version] = await Promise.all<string>([
     computeDefaultAppDirectory(
       projectDir,
-      use(config.directories, it => it!.app)
+      use(config.directories, it => it.app)
     ),
-    getElectronVersion(projectDir, config, packageMetadata),
+    getElectronVersion(projectDir, config),
   ])
 
   // if two package.json — force full install (user wants to install/update app deps in addition to dev)
@@ -63,7 +62,7 @@ export async function installAppDeps(args: any) {
       frameworkInfo: { version, useCustomDist: true },
       platform: args.platform,
       arch: args.arch,
-      productionDeps: createLazyProductionDeps(appDir, null),
+      productionDeps: createLazyProductionDeps(appDir, null, false),
     },
     appDir !== projectDir
   )

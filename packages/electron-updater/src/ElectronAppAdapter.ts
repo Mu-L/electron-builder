@@ -21,7 +21,7 @@ export class ElectronAppAdapter implements AppAdapter {
   }
 
   get appUpdateConfigPath(): string {
-    return this.isPackaged ? path.join(process.resourcesPath!, "app-update.yml") : path.join(this.app.getAppPath(), "dev-app-update.yml")
+    return this.isPackaged ? path.join(process.resourcesPath, "app-update.yml") : path.join(this.app.getAppPath(), "dev-app-update.yml")
   }
 
   get userDataPath(): string {
@@ -36,7 +36,11 @@ export class ElectronAppAdapter implements AppAdapter {
     this.app.quit()
   }
 
+  relaunch(): void {
+    this.app.relaunch()
+  }
+
   onQuit(handler: (exitCode: number) => void): void {
-    this.app.once("quit", (_: Event, exitCode: number) => handler(exitCode))
+    this.app.once("quit", (_: Electron.Event, exitCode: number) => handler(exitCode))
   }
 }

@@ -1,9 +1,9 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`arm 1`] = `
-Object {
-  "linux": Array [
-    Object {
+{
+  "linux": [
+    {
       "arch": "armv7l",
       "file": "sep_1.1.0_armhf.snap",
     },
@@ -12,19 +12,18 @@ Object {
 `;
 
 exports[`auto start 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "autostart": "sep.desktop",
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "desktop",
         "desktop-legacy",
         "home",
@@ -40,32 +39,31 @@ Object {
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "name": "sep",
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -78,25 +76,23 @@ Object {
 `;
 
 exports[`auto start 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
-exports[`buildPackages 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
-      "adapter": "none",
+exports[`base option 1`] = `
+{
+  "apps": {
+    "testapp": {
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "desktop",
         "desktop-legacy",
         "home",
@@ -112,25 +108,94 @@ Object {
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core22",
+  "confinement": "strict",
+  "description": "Test Application (test quite “ #378)",
+  "grade": "stable",
+  "name": "testapp",
+  "plugs": {
+    "gnome-3-28-1804": {
+      "default-provider": "gnome-3-28-1804",
+      "interface": "content",
+      "target": "$SNAP/gnome-platform",
+    },
+    "gtk-3-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/themes",
+    },
+    "icon-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/icons",
+    },
+    "sound-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/sounds",
+    },
+  },
+  "summary": "Sep",
+  "title": "Sep",
+  "version": "1.1.0",
+}
+`;
+
+exports[`base option 2`] = `
+{
+  "linux": [],
+}
+`;
+
+exports[`buildPackages 1`] = `
+{
+  "apps": {
+    "sep": {
+      "adapter": "none",
+      "command": "command.sh",
+      "environment": {
+        "DISABLE_WAYLAND": "1",
+        "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
+        "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
+        "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
+      },
+      "plugs": [
+        "desktop",
+        "desktop-legacy",
+        "home",
+        "x11",
+        "wayland",
+        "unity7",
+        "browser-support",
+        "network",
+        "gsettings",
+        "audio-playback",
+        "pulseaudio",
+        "opengl",
+      ],
+    },
+  },
+  "architectures": [
+    "amd64",
+  ],
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "icon": "snap/gui/icon.png",
   "name": "sep",
-  "parts": Object {
-    "app": Object {
-      "build-packages": Array [
+  "parts": {
+    "app": {
+      "build-packages": [
         "foo1",
         "default",
         "foo2",
       ],
       "plugin": "nil",
-      "stage": Array [
+      "stage": [
         "-usr/lib/python*",
         "-usr/bin/python*",
         "-var/lib/ucf",
@@ -234,7 +299,7 @@ Object {
         "-usr/lib/*/libXrandr*",
         "-usr/lib/*/libXrender*",
       ],
-      "stage-packages": Array [
+      "stage-packages": [
         "libnspr4",
         "libnss3",
         "libxss1",
@@ -242,44 +307,44 @@ Object {
         "libsecret-1-0",
       ],
     },
-    "app-files": Object {
-      "organize": Object {
+    "app-files": {
+      "organize": {
         "*": "app/",
       },
       "plugin": "dump",
       "source": "app",
-      "stage": Array [
+      "stage": [
         "-app/chrome-sandbox",
         "-LICENSES.chromium.html",
       ],
     },
-    "gnome-platform-empty-dirs": Object {
-      "override-build": "mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/themes\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/icons\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/sounds\\" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
+    "gnome-platform-empty-dirs": {
+      "override-build": "mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/themes" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/icons" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/sounds" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
 ",
       "plugin": "nil",
     },
-    "launch-scripts": Object {
+    "launch-scripts": {
       "plugin": "dump",
       "source": "scripts",
     },
   },
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -292,15 +357,15 @@ Object {
 `;
 
 exports[`buildPackages 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`classic confinement 1`] = `
-Object {
-  "linux": Array [
-    Object {
+{
+  "linux": [
+    {
       "arch": "x64",
       "file": "cl-co-app_1.1.0_amd64.snap",
     },
@@ -309,18 +374,18 @@ Object {
 `;
 
 exports[`compression option 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
+      "adapter": "none",
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "desktop",
         "desktop-legacy",
         "home",
@@ -336,32 +401,169 @@ Object {
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
+  "base": "core20",
   "compression": "xz",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
+  "icon": "snap/gui/icon.png",
   "name": "sep",
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "parts": {
+    "app": {
+      "plugin": "nil",
+      "stage": [
+        "-usr/lib/python*",
+        "-usr/bin/python*",
+        "-var/lib/ucf",
+        "-usr/include",
+        "-usr/lib/X11",
+        "-usr/share",
+        "-usr/sbin",
+        "-usr/bin",
+        "-usr/lib/*/libicudata.*",
+        "-usr/lib/*/libicui18n.*",
+        "-usr/lib/*/libgtk-*",
+        "-usr/lib/*/libgdk-*",
+        "-usr/lib/*/glib-*",
+        "-usr/lib/*/gtk-*",
+        "-usr/lib/*/gdk-*",
+        "-usr/lib/*/krb5",
+        "-usr/lib/systemd",
+        "-usr/lib/glib-networking",
+        "-usr/lib/dconf",
+        "-usr/lib/*/avahi",
+        "-usr/lib/*/gio",
+        "-usr/lib/*/libatk*",
+        "-usr/lib/*/libatspi*",
+        "-usr/lib/*/libavahi*",
+        "-usr/lib/*/libcairo*",
+        "-usr/lib/*/libcolordprivate*",
+        "-usr/lib/*/libcolord*",
+        "-usr/lib/*/libcroco*",
+        "-usr/lib/*/libcups*",
+        "-usr/lib/*/libdatrie*",
+        "-usr/lib/*/libdconf*",
+        "-usr/lib/*/libepoxy*",
+        "-usr/lib/*/libexpatw*",
+        "-usr/lib/*/libffi*",
+        "-usr/lib/*/libfontconfig*",
+        "-usr/lib/*/libfreetype*",
+        "-usr/lib/*/libgdk_pixbuf*",
+        "-usr/lib/*/libgdk_pixbuf_xlib*",
+        "-usr/lib/*/libgio*",
+        "-usr/lib/*/libglib*",
+        "-usr/lib/*/libgmodule*",
+        "-usr/lib/*/libgmp*",
+        "-usr/lib/*/libgnutls*",
+        "-usr/lib/*/libgobject*",
+        "-usr/lib/*/libgraphite2*",
+        "-usr/lib/*/libgssapi_krb5*",
+        "-usr/lib/*/libgthread*",
+        "-usr/lib/*/libharfbuzz*",
+        "-usr/lib/*/libhogweed*",
+        "-usr/lib/*/libicuio*",
+        "-usr/lib/*/libicutest*",
+        "-usr/lib/*/libicutu*",
+        "-usr/lib/*/libicuuc*",
+        "-usr/lib/*/libidn2*",
+        "-usr/lib/*/libjbig*",
+        "-usr/lib/*/libjpeg*",
+        "-usr/lib/*/libjson*",
+        "-usr/lib/*/libk5crypto*",
+        "-usr/lib/*/libkrb5*",
+        "-usr/lib/*/libkrb5support*",
+        "-usr/lib/*/liblcms2*",
+        "-usr/lib/*/libnettle*",
+        "-usr/lib/*/libp11*",
+        "-usr/lib/*/libpango*",
+        "-usr/lib/*/libpangocairo*",
+        "-usr/lib/*/libpangoft2*",
+        "-usr/lib/*/libpixman*",
+        "-usr/lib/*/libpng16*",
+        "-usr/lib/*/libproxy*",
+        "-usr/lib/*/librest*",
+        "-usr/lib/*/librsvg*",
+        "-usr/lib/*/libsecret*",
+        "-usr/lib/*/libsoup*",
+        "-usr/lib/*/libsqlite3*",
+        "-usr/lib/*/libtasn1*",
+        "-usr/lib/*/libthai*",
+        "-usr/lib/*/libtiff*",
+        "-usr/lib/*/libunistring*",
+        "-usr/lib/*/libwayland*",
+        "-usr/lib/*/libX11*",
+        "-usr/lib/*/libXau*",
+        "-usr/lib/*/libxcb.so*",
+        "-usr/lib/*/libxcb-dri2*",
+        "-usr/lib/*/libxcb-dri3*",
+        "-usr/lib/*/libxcb-glx*",
+        "-usr/lib/*/libxcb-present*",
+        "-usr/lib/*/libxcb-render*",
+        "-usr/lib/*/libxcb-shm*",
+        "-usr/lib/*/libxcb-sync*",
+        "-usr/lib/*/libxcb-xfixes*",
+        "-usr/lib/*/libXcomposite*",
+        "-usr/lib/*/libXcursor*",
+        "-usr/lib/*/libXdamage*",
+        "-usr/lib/*/libXdmcp*",
+        "-usr/lib/*/libXext*",
+        "-usr/lib/*/libXfixes*",
+        "-usr/lib/*/libXinerama*",
+        "-usr/lib/*/libXi*",
+        "-usr/lib/*/libxkbcommon*",
+        "-usr/lib/*/libxml2*",
+        "-usr/lib/*/libXrandr*",
+        "-usr/lib/*/libXrender*",
+      ],
+      "stage-packages": [
+        "libnspr4",
+        "libnss3",
+        "libxss1",
+        "libappindicator3-1",
+        "libsecret-1-0",
+      ],
+    },
+    "app-files": {
+      "organize": {
+        "*": "app/",
+      },
+      "plugin": "dump",
+      "source": "app",
+      "stage": [
+        "-app/chrome-sandbox",
+        "-LICENSES.chromium.html",
+      ],
+    },
+    "gnome-platform-empty-dirs": {
+      "override-build": "mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/themes" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/icons" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/sounds" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
+",
+      "plugin": "nil",
+    },
+    "launch-scripts": {
+      "plugin": "dump",
+      "source": "scripts",
+    },
+  },
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -374,24 +576,23 @@ Object {
 `;
 
 exports[`compression option 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`custom after, no desktop 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "desktop",
         "desktop-legacy",
         "home",
@@ -407,32 +608,31 @@ Object {
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "name": "sep",
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -445,25 +645,24 @@ Object {
 `;
 
 exports[`custom after, no desktop 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`custom env 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "FOO": "bar",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "desktop",
         "desktop-legacy",
         "home",
@@ -479,32 +678,31 @@ Object {
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "name": "sep",
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -517,24 +715,23 @@ Object {
 `;
 
 exports[`custom env 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
-exports[`default compression 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+exports[`default base 1`] = `
+{
+  "apps": {
+    "testapp": {
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "desktop",
         "desktop-legacy",
         "home",
@@ -550,32 +747,100 @@ Object {
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
-  "name": "sep",
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "name": "testapp",
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/sounds",
+    },
+  },
+  "summary": "Sep",
+  "title": "Sep",
+  "version": "1.1.0",
+}
+`;
+
+exports[`default base 2`] = `
+{
+  "linux": [],
+}
+`;
+
+exports[`default compression 1`] = `
+{
+  "apps": {
+    "sep": {
+      "command": "command.sh",
+      "environment": {
+        "DISABLE_WAYLAND": "1",
+        "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
+        "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
+        "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
+      },
+      "plugs": [
+        "desktop",
+        "desktop-legacy",
+        "home",
+        "x11",
+        "wayland",
+        "unity7",
+        "browser-support",
+        "network",
+        "gsettings",
+        "audio-playback",
+        "pulseaudio",
+        "opengl",
+      ],
+    },
+  },
+  "architectures": [
+    "amd64",
+  ],
+  "base": "core20",
+  "confinement": "strict",
+  "description": "Test Application (test quite “ #378)",
+  "grade": "stable",
+  "name": "sep",
+  "plugs": {
+    "gnome-3-28-1804": {
+      "default-provider": "gnome-3-28-1804",
+      "interface": "content",
+      "target": "$SNAP/gnome-platform",
+    },
+    "gtk-3-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/themes",
+    },
+    "icon-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/icons",
+    },
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -588,33 +853,32 @@ Object {
 `;
 
 exports[`default compression 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`default stagePackages 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "adapter": "none",
       "command": "command.sh",
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "classic",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "icon": "snap/gui/icon.png",
   "name": "sep",
-  "parts": Object {
-    "app": Object {
+  "parts": {
+    "app": {
       "plugin": "nil",
-      "stage": Array [
+      "stage": [
         "-usr/lib/python*",
         "-usr/bin/python*",
         "-var/lib/ucf",
@@ -718,7 +982,7 @@ Object {
         "-usr/lib/*/libXrandr*",
         "-usr/lib/*/libXrender*",
       ],
-      "stage-packages": Array [
+      "stage-packages": [
         "libnspr4",
         "libnss3",
         "libxss1",
@@ -726,23 +990,23 @@ Object {
         "libsecret-1-0",
       ],
     },
-    "app-files": Object {
-      "organize": Object {
+    "app-files": {
+      "organize": {
         "*": "app/",
       },
       "plugin": "dump",
       "source": "app",
-      "stage": Array [
+      "stage": [
         "-app/chrome-sandbox",
         "-LICENSES.chromium.html",
       ],
     },
-    "gnome-platform-empty-dirs": Object {
-      "override-build": "mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/themes\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/icons\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/sounds\\" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
+    "gnome-platform-empty-dirs": {
+      "override-build": "mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/themes" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/icons" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/sounds" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
 ",
       "plugin": "nil",
     },
-    "launch-scripts": Object {
+    "launch-scripts": {
       "plugin": "dump",
       "source": "scripts",
     },
@@ -754,33 +1018,32 @@ Object {
 `;
 
 exports[`default stagePackages 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`default stagePackages 3`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "adapter": "none",
       "command": "command.sh",
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "classic",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "icon": "snap/gui/icon.png",
   "name": "sep",
-  "parts": Object {
-    "app": Object {
+  "parts": {
+    "app": {
       "plugin": "nil",
-      "stage": Array [
+      "stage": [
         "-usr/lib/python*",
         "-usr/bin/python*",
         "-var/lib/ucf",
@@ -884,7 +1147,7 @@ Object {
         "-usr/lib/*/libXrandr*",
         "-usr/lib/*/libXrender*",
       ],
-      "stage-packages": Array [
+      "stage-packages": [
         "libnspr4",
         "libnss3",
         "libxss1",
@@ -893,23 +1156,23 @@ Object {
         "custom",
       ],
     },
-    "app-files": Object {
-      "organize": Object {
+    "app-files": {
+      "organize": {
         "*": "app/",
       },
       "plugin": "dump",
       "source": "app",
-      "stage": Array [
+      "stage": [
         "-app/chrome-sandbox",
         "-LICENSES.chromium.html",
       ],
     },
-    "gnome-platform-empty-dirs": Object {
-      "override-build": "mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/themes\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/icons\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/sounds\\" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
+    "gnome-platform-empty-dirs": {
+      "override-build": "mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/themes" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/icons" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/sounds" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
 ",
       "plugin": "nil",
     },
-    "launch-scripts": Object {
+    "launch-scripts": {
       "plugin": "dump",
       "source": "scripts",
     },
@@ -921,33 +1184,32 @@ Object {
 `;
 
 exports[`default stagePackages 4`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`default stagePackages 5`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "adapter": "none",
       "command": "command.sh",
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "classic",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "icon": "snap/gui/icon.png",
   "name": "sep",
-  "parts": Object {
-    "app": Object {
+  "parts": {
+    "app": {
       "plugin": "nil",
-      "stage": Array [
+      "stage": [
         "-usr/lib/python*",
         "-usr/bin/python*",
         "-var/lib/ucf",
@@ -1051,7 +1313,7 @@ Object {
         "-usr/lib/*/libXrandr*",
         "-usr/lib/*/libXrender*",
       ],
-      "stage-packages": Array [
+      "stage-packages": [
         "custom",
         "libnspr4",
         "libnss3",
@@ -1060,23 +1322,23 @@ Object {
         "libsecret-1-0",
       ],
     },
-    "app-files": Object {
-      "organize": Object {
+    "app-files": {
+      "organize": {
         "*": "app/",
       },
       "plugin": "dump",
       "source": "app",
-      "stage": Array [
+      "stage": [
         "-app/chrome-sandbox",
         "-LICENSES.chromium.html",
       ],
     },
-    "gnome-platform-empty-dirs": Object {
-      "override-build": "mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/themes\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/icons\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/sounds\\" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
+    "gnome-platform-empty-dirs": {
+      "override-build": "mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/themes" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/icons" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/sounds" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
 ",
       "plugin": "nil",
     },
-    "launch-scripts": Object {
+    "launch-scripts": {
       "plugin": "dump",
       "source": "scripts",
     },
@@ -1088,33 +1350,32 @@ Object {
 `;
 
 exports[`default stagePackages 6`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`default stagePackages 7`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "adapter": "none",
       "command": "command.sh",
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "classic",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "icon": "snap/gui/icon.png",
   "name": "sep",
-  "parts": Object {
-    "app": Object {
+  "parts": {
+    "app": {
       "plugin": "nil",
-      "stage": Array [
+      "stage": [
         "-usr/lib/python*",
         "-usr/bin/python*",
         "-var/lib/ucf",
@@ -1218,7 +1479,7 @@ Object {
         "-usr/lib/*/libXrandr*",
         "-usr/lib/*/libXrender*",
       ],
-      "stage-packages": Array [
+      "stage-packages": [
         "foo1",
         "libnspr4",
         "libnss3",
@@ -1228,23 +1489,23 @@ Object {
         "foo2",
       ],
     },
-    "app-files": Object {
-      "organize": Object {
+    "app-files": {
+      "organize": {
         "*": "app/",
       },
       "plugin": "dump",
       "source": "app",
-      "stage": Array [
+      "stage": [
         "-app/chrome-sandbox",
         "-LICENSES.chromium.html",
       ],
     },
-    "gnome-platform-empty-dirs": Object {
-      "override-build": "mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/themes\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/icons\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/sounds\\" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
+    "gnome-platform-empty-dirs": {
+      "override-build": "mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/themes" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/icons" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/sounds" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
 ",
       "plugin": "nil",
     },
-    "launch-scripts": Object {
+    "launch-scripts": {
       "plugin": "dump",
       "source": "scripts",
     },
@@ -1256,55 +1517,53 @@ Object {
 `;
 
 exports[`default stagePackages 8`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`no desktop plugs 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "foo",
         "bar",
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "name": "sep",
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -1317,44 +1576,42 @@ Object {
 `;
 
 exports[`no desktop plugs 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`plugs option 1`] = `
-Object {
-  "apps": Object {
-    "testapp": Object {
+{
+  "apps": {
+    "testapp": {
       "adapter": "none",
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "browser-sandbox",
         "another-simple-plug-name",
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "icon": "snap/gui/icon.png",
   "name": "testapp",
-  "parts": Object {
-    "app": Object {
+  "parts": {
+    "app": {
       "plugin": "nil",
-      "stage": Array [
+      "stage": [
         "-usr/lib/python*",
         "-usr/bin/python*",
         "-var/lib/ucf",
@@ -1458,7 +1715,7 @@ Object {
         "-usr/lib/*/libXrandr*",
         "-usr/lib/*/libXrender*",
       ],
-      "stage-packages": Array [
+      "stage-packages": [
         "libnspr4",
         "libnss3",
         "libxss1",
@@ -1466,48 +1723,48 @@ Object {
         "libsecret-1-0",
       ],
     },
-    "app-files": Object {
-      "organize": Object {
+    "app-files": {
+      "organize": {
         "*": "app/",
       },
       "plugin": "dump",
       "source": "app",
-      "stage": Array [
+      "stage": [
         "-app/chrome-sandbox",
         "-LICENSES.chromium.html",
       ],
     },
-    "gnome-platform-empty-dirs": Object {
-      "override-build": "mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/themes\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/icons\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/sounds\\" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
+    "gnome-platform-empty-dirs": {
+      "override-build": "mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/themes" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/icons" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/sounds" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
 ",
       "plugin": "nil",
     },
-    "launch-scripts": Object {
+    "launch-scripts": {
       "plugin": "dump",
       "source": "scripts",
     },
   },
-  "plugs": Object {
-    "browser-sandbox": Object {
+  "plugs": {
+    "browser-sandbox": {
       "allow-sandbox": true,
       "interface": "browser-support",
     },
-    "gnome-3-28-1804": Object {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -1520,44 +1777,42 @@ Object {
 `;
 
 exports[`plugs option 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`plugs option 3`] = `
-Object {
-  "apps": Object {
-    "testapp": Object {
+{
+  "apps": {
+    "testapp": {
       "adapter": "none",
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "browser-sandbox",
         "another-simple-plug-name",
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "icon": "snap/gui/icon.png",
   "name": "testapp",
-  "parts": Object {
-    "app": Object {
+  "parts": {
+    "app": {
       "plugin": "nil",
-      "stage": Array [
+      "stage": [
         "-usr/lib/python*",
         "-usr/bin/python*",
         "-var/lib/ucf",
@@ -1661,7 +1916,7 @@ Object {
         "-usr/lib/*/libXrandr*",
         "-usr/lib/*/libXrender*",
       ],
-      "stage-packages": Array [
+      "stage-packages": [
         "libnspr4",
         "libnss3",
         "libxss1",
@@ -1669,48 +1924,48 @@ Object {
         "libsecret-1-0",
       ],
     },
-    "app-files": Object {
-      "organize": Object {
+    "app-files": {
+      "organize": {
         "*": "app/",
       },
       "plugin": "dump",
       "source": "app",
-      "stage": Array [
+      "stage": [
         "-app/chrome-sandbox",
         "-LICENSES.chromium.html",
       ],
     },
-    "gnome-platform-empty-dirs": Object {
-      "override-build": "mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/themes\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/icons\\" mkdir -p \\"$SNAPCRAFT_PART_INSTALL/data-dir/sounds\\" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
+    "gnome-platform-empty-dirs": {
+      "override-build": "mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/themes" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/icons" mkdir -p "$SNAPCRAFT_PART_INSTALL/data-dir/sounds" mkdir $SNAPCRAFT_PART_INSTALL/gnome-platform
 ",
       "plugin": "nil",
     },
-    "launch-scripts": Object {
+    "launch-scripts": {
       "plugin": "dump",
       "source": "scripts",
     },
   },
-  "plugs": Object {
-    "browser-sandbox": Object {
+  "plugs": {
+    "browser-sandbox": {
       "allow-sandbox": true,
       "interface": "browser-support",
     },
-    "gnome-3-28-1804": Object {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -1723,24 +1978,23 @@ Object {
 `;
 
 exports[`plugs option 4`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`slots option 1`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "desktop",
         "desktop-legacy",
         "home",
@@ -1754,38 +2008,37 @@ Object {
         "pulseaudio",
         "opengl",
       ],
-      "slots": Array [
+      "slots": [
         "foo",
         "bar",
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "name": "sep",
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
@@ -1798,24 +2051,23 @@ Object {
 `;
 
 exports[`slots option 2`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`slots option 3`] = `
-Object {
-  "apps": Object {
-    "sep": Object {
+{
+  "apps": {
+    "sep": {
       "command": "command.sh",
-      "environment": Object {
+      "environment": {
         "DISABLE_WAYLAND": "1",
         "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
         "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
         "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
-        "TMPDIR": "$XDG_RUNTIME_DIR",
       },
-      "plugs": Array [
+      "plugs": [
         "desktop",
         "desktop-legacy",
         "home",
@@ -1829,45 +2081,44 @@ Object {
         "pulseaudio",
         "opengl",
       ],
-      "slots": Array [
+      "slots": [
         "mpris",
         "another-simple-slot-name",
       ],
     },
   },
-  "architectures": Array [
+  "architectures": [
     "amd64",
   ],
-  "base": "core18",
-  "compression": "lzo",
+  "base": "core20",
   "confinement": "strict",
   "description": "Test Application (test quite “ #378)",
   "grade": "stable",
   "name": "sep",
-  "plugs": Object {
-    "gnome-3-28-1804": Object {
+  "plugs": {
+    "gnome-3-28-1804": {
       "default-provider": "gnome-3-28-1804",
       "interface": "content",
       "target": "$SNAP/gnome-platform",
     },
-    "gtk-3-themes": Object {
+    "gtk-3-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/themes",
     },
-    "icon-themes": Object {
+    "icon-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/icons",
     },
-    "sound-themes": Object {
+    "sound-themes": {
       "default-provider": "gtk-common-themes",
       "interface": "content",
       "target": "$SNAP/data-dir/sounds",
     },
   },
-  "slots": Object {
-    "mpris": Object {
+  "slots": {
+    "mpris": {
       "interface": "mpris",
       "name": "chromium",
     },
@@ -1879,18 +2130,87 @@ Object {
 `;
 
 exports[`slots option 4`] = `
-Object {
-  "linux": Array [],
+{
+  "linux": [],
 }
 `;
 
 exports[`snap 1`] = `
-Object {
-  "linux": Array [
-    Object {
+{
+  "linux": [
+    {
       "arch": "x64",
       "file": "sep_1.1.0_amd64.snap",
     },
   ],
+}
+`;
+
+exports[`use template app 1`] = `
+{
+  "apps": {
+    "testapp": {
+      "command": "command.sh",
+      "environment": {
+        "DISABLE_WAYLAND": "1",
+        "LD_LIBRARY_PATH": "$SNAP_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu",
+        "PATH": "$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH",
+        "SNAP_DESKTOP_RUNTIME": "$SNAP/gnome-platform",
+      },
+      "plugs": [
+        "desktop",
+        "desktop-legacy",
+        "home",
+        "x11",
+        "wayland",
+        "unity7",
+        "browser-support",
+        "network",
+        "gsettings",
+        "audio-playback",
+        "pulseaudio",
+        "opengl",
+      ],
+    },
+  },
+  "architectures": [
+    "amd64",
+  ],
+  "base": "core20",
+  "confinement": "strict",
+  "description": "Test Application (test quite “ #378)",
+  "grade": "stable",
+  "name": "testapp",
+  "plugs": {
+    "gnome-3-28-1804": {
+      "default-provider": "gnome-3-28-1804",
+      "interface": "content",
+      "target": "$SNAP/gnome-platform",
+    },
+    "gtk-3-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/themes",
+    },
+    "icon-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/icons",
+    },
+    "sound-themes": {
+      "default-provider": "gtk-common-themes",
+      "interface": "content",
+      "target": "$SNAP/data-dir/sounds",
+    },
+  },
+  "summary": "Test App ßW",
+  "title": "Test App ßW",
+  "version": "1.1.0",
+}
+`;
+
+exports[`use template app 2`] = `
+{
+  "linux": [],
 }
 `;

@@ -2,20 +2,37 @@
 
 set -ex
 
+NODE_VERSION=$1
+NODE_TAG=$(cut -d '.' -f 1 <<< "$NODE_VERSION")
 DATE=$(date +%m.%y)
 
 docker build -t electronuserland/builder:base -t "electronuserland/builder:base-$DATE" docker/base
 
-# Node 14
-docker build --build-arg NODE_VERSION=14.17.0 -t electronuserland/builder:14 -t "electronuserland/builder:14-$DATE" -t electronuserland/builder:latest docker/node
+docker build \
+  --build-arg NODE_VERSION="$NODE_VERSION" \
+  --build-arg IMAGE_VERSION="base-$DATE" \
+  -t "electronuserland/builder:$NODE_TAG" \
+  -t "electronuserland/builder:$NODE_TAG-$DATE" \
+  docker/node
 
-docker build --build-arg IMAGE_VERSION=14 -t electronuserland/builder:14-wine -t "electronuserland/builder:14-wine-$DATE" -t electronuserland/builder:wine docker/wine
-docker build --build-arg IMAGE_VERSION=14-wine -t electronuserland/builder:14-wine-mono -t "electronuserland/builder:14-wine-mono-$DATE" -t electronuserland/builder:wine-mono docker/wine-mono
-docker build --build-arg IMAGE_VERSION=14-wine -t electronuserland/builder:14-wine-chrome -t "electronuserland/builder:14-wine-chrome-$DATE" -t electronuserland/builder:wine-chrome docker/wine-chrome
+docker build \
+  --build-arg IMAGE_VERSION="$NODE_TAG-$DATE" \
+  -t "electronuserland/builder:$NODE_TAG-wine" \
+  -t "electronuserland/builder:$NODE_TAG-wine-$DATE" \
+  docker/wine
 
-# Node 16
-# docker build --build-arg NODE_VERSION=16.13.1 -t electronuserland/builder:16 -t "electronuserland/builder:16-$DATE" docker/node
+docker build \
+  --build-arg IMAGE_VERSION="$NODE_TAG-wine-$DATE" \
+  -t "electronuserland/builder:$NODE_TAG-wine-chrome" \
+  -t "electronuserland/builder:$NODE_TAG-wine-chrome-$DATE" \
+  docker/wine-chrome
 
-# docker build --build-arg IMAGE_VERSION=16 -t electronuserland/builder:16-wine -t "electronuserland/builder:16-wine-$DATE" docker/wine
-# docker build --build-arg IMAGE_VERSION=16-wine -t electronuserland/builder:16-wine-mono -t "electronuserland/builder:16-wine-mono-$DATE" docker/wine-mono
-# docker build --build-arg IMAGE_VERSION=16-wine -t electronuserland/builder:16-wine-chrome -t "electronuserland/builder:16-wine-chrome-$DATE" docker/wine-chrome
+# We also use this image for running our unit tests
+docker build \
+  --build-arg IMAGE_VERSION="$NODE_TAG-wine-$DATE" \
+  -t "electronuserland/builder:$NODE_TAG-wine-mono" \
+  -t "electronuserland/builder:$NODE_TAG-wine-mono-$DATE" \
+  docker/wine-mono
+
+# Generate report
+docker images --filter=reference="electronuserland/builder:*"

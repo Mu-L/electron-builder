@@ -76,6 +76,21 @@ export class LinuxTargetHelper {
     return options.description || this.packager.appInfo.description
   }
 
+  getSanitizedVersion(target: string) {
+    const {
+      appInfo: { version },
+    } = this.packager
+    switch (target) {
+      case "pacman":
+        return version.replace(/-/g, "_")
+      case "rpm":
+      case "deb":
+        return version.replace(/-/g, "~")
+      default:
+        return version
+    }
+  }
+
   async writeDesktopEntry(targetSpecificOptions: LinuxTargetSpecificOptions, exec?: string, destination?: string | null, extra?: { [key: string]: string }): Promise<string> {
     const data = await this.computeDesktopEntry(targetSpecificOptions, exec, extra)
     const file = destination || (await this.packager.getTempFile(`${this.packager.appInfo.productFilename}.desktop`))
@@ -88,7 +103,7 @@ export class LinuxTargetHelper {
       throw new Error("Specified exec is empty")
     }
     // https://github.com/electron-userland/electron-builder/issues/3418
-    if (targetSpecificOptions.desktop != null && targetSpecificOptions.desktop.Exec != null) {
+    if (targetSpecificOptions.desktop?.entry?.Exec) {
       throw new Error("Please specify executable name as linux.executableName instead of linux.desktop.Exec")
     }
 
@@ -125,7 +140,7 @@ export class LinuxTargetHelper {
       // https://github.com/electron/electron/blob/2-0-x/atom/browser/native_window_views.cc#L226
       StartupWMClass: appInfo.productName,
       ...extra,
-      ...targetSpecificOptions.desktop,
+      ...(targetSpecificOptions.desktop?.entry ?? {}),
     }
 
     const description = this.getDescription(targetSpecificOptions)
@@ -165,7 +180,7 @@ export class LinuxTargetHelper {
         log.warn(
           {
             reason: "linux.category is not set and cannot map from macOS",
-            docs: "https://www.electron.build/configuration/linux",
+            docs: "https://www.electron.build/linux",
           },
           'application Linux category is set to default "Utility"'
         )
@@ -179,6 +194,17 @@ export class LinuxTargetHelper {
       data += `\n${name}=${desktopMeta[name]}`
     }
     data += "\n"
+    const desktopActions = targetSpecificOptions.desktop?.desktopActions ?? {}
+    for (const [actionName, config] of Object.entries(desktopActions)) {
+      if (!Object.keys(config ?? {}).length) {
+        continue
+      }
+      data += `\n[Desktop Action ${actionName}]`
+      for (const [key, value] of Object.entries(config ?? {})) {
+        data += `\n${key}=${value}`
+      }
+      data += "\n"
+    }
     return Promise.resolve(data)
   }
 }
@@ -192,4 +218,5 @@ const macToLinuxCategory: any = {
   "public.app-category.utilities": "Utility",
   "public.app-category.social-networking": "Network;Chat",
   "public.app-category.finance": "Office;Finance",
+  "public.app-category.music": "Audio;AudioVideo",
 }

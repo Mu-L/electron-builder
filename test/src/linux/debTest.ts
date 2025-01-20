@@ -22,6 +22,27 @@ test.ifNotWindows(
       deb: {
         depends: ["foo"],
       },
+      electronFuses: {
+        runAsNode: true,
+        enableCookieEncryption: true,
+        enableNodeOptionsEnvironmentVariable: true,
+        enableNodeCliInspectArguments: true,
+        enableEmbeddedAsarIntegrityValidation: true,
+        onlyLoadAppFromAsar: true,
+        loadBrowserProcessSpecificV8Snapshot: true,
+        grantFileProtocolExtraPrivileges: undefined, // unsupported on current electron version in our tests
+      },
+    },
+  })
+)
+
+test.ifNotWindows(
+  "top-level exec name",
+  app({
+    targets: Platform.LINUX.createTarget("deb"),
+    config: {
+      productName: "foo",
+      executableName: "Boo",
     },
   })
 )

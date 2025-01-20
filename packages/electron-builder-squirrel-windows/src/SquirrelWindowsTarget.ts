@@ -1,4 +1,4 @@
-import { sanitizeFileName } from "app-builder-lib/out/util/filename"
+import { sanitizeFileName } from "builder-util/out/filename"
 import { InvalidConfigurationError, log, isEmptyOrSpaces } from "builder-util"
 import { getBinFromUrl } from "app-builder-lib/out/binDownload"
 import { Arch, getArchSuffix, SquirrelWindowsOptions, Target } from "app-builder-lib"
@@ -10,7 +10,10 @@ export default class SquirrelWindowsTarget extends Target {
   //tslint:disable-next-line:no-object-literal-type-assertion
   readonly options: SquirrelWindowsOptions = { ...this.packager.platformSpecificBuildOptions, ...this.packager.config.squirrelWindows } as SquirrelWindowsOptions
 
-  constructor(private readonly packager: WinPackager, readonly outDir: string) {
+  constructor(
+    private readonly packager: WinPackager,
+    readonly outDir: string
+  ) {
     super("squirrel")
   }
 
@@ -86,9 +89,7 @@ export default class SquirrelWindowsTarget extends Target {
       }
 
       if (iconUrl == null) {
-        throw new InvalidConfigurationError(
-          "squirrelWindows.iconUrl is not specified, please see https://www.electron.build/configuration/squirrel-windows#SquirrelWindowsOptions-iconUrl"
-        )
+        throw new InvalidConfigurationError("squirrelWindows.iconUrl is not specified, please see https://www.electron.build/squirrel-windows#SquirrelWindowsOptions-iconUrl")
       }
     }
 

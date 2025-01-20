@@ -1,7 +1,7 @@
 import BluebirdPromise from "bluebird-lst"
-import { exec, InvalidConfigurationError, isEmptyOrSpaces, isEnvTrue, isPullRequest, log, TmpDir } from "builder-util/out/util"
-import { copyFile, unlinkIfExists } from "builder-util/out/fs"
-import { Fields, Logger } from "builder-util/out/log"
+import { exec, InvalidConfigurationError, isEmptyOrSpaces, isEnvTrue, isPullRequest, log, TmpDir, retry } from "builder-util"
+import { copyFile, unlinkIfExists } from "builder-util"
+import { Fields, Logger } from "builder-util"
 import { randomBytes, createHash } from "crypto"
 import { rename } from "fs/promises"
 import { Lazy } from "lazy-val"
@@ -9,7 +9,10 @@ import { homedir, tmpdir } from "os"
 import * as path from "path"
 import { getTempName } from "temp-file"
 import { isAutoDiscoveryCodeSignIdentity } from "../util/flags"
-import { downloadCertificate } from "./codesign"
+import { importCertificate } from "./codesign"
+import { Identity as _Identity } from "@electron/osx-sign/dist/cjs/util-identities"
+import { SignOptions } from "@electron/osx-sign/dist/cjs/types"
+import { signAsync } from "@electron/osx-sign"
 
 export const appleCertificatePrefixes = ["Developer ID Application:", "Developer ID Installer:", "3rd Party Mac Developer Application:", "3rd Party Mac Developer Installer:"]
 
@@ -86,7 +89,7 @@ export async function reportError(
   }
 
   if (qualifier != null || isAutoDiscoveryCodeSignIdentity()) {
-    logFields.allIdentities = (await exec("security", args))
+    logFields.allIdentities = (await exec("/usr/bin/security", args))
       .trim()
       .split("\n")
       .filter(it => !(it.includes("Policy: X.509 Basic") || it.includes("Matching identities")))
@@ -115,7 +118,7 @@ const bundledCertKeychainAdded = new Lazy<void>(async () => {
   ])
   const list = results[0]
   if (!list.includes(keychainPath)) {
-    await exec("security", ["list-keychains", "-d", "user", "-s", keychainPath].concat(list))
+    await exec("/usr/bin/security", ["list-keychains", "-d", "user", "-s", keychainPath].concat(list))
   }
 })
 
@@ -125,7 +128,7 @@ function getCacheDirectory(): string {
 }
 
 function listUserKeychains(): Promise<Array<string>> {
-  return exec("security", ["list-keychains", "-d", "user"]).then(it =>
+  return exec("/usr/bin/security", ["list-keychains", "-d", "user"]).then(it =>
     it
       .split("\n")
       .map(it => {
@@ -146,7 +149,7 @@ export interface CreateKeychainOptions {
 }
 
 export function removeKeychain(keychainFile: string, printWarn = true): Promise<any> {
-  return exec("security", ["delete-keychain", keychainFile]).catch(e => {
+  return exec("/usr/bin/security", ["delete-keychain", keychainFile]).catch((e: any) => {
     if (printWarn) {
       log.warn({ file: keychainFile, error: e.stack || e }, "cannot delete keychain")
     }
@@ -164,7 +167,7 @@ export async function createKeychain({ tmpDir, cscLink, cscKeyPassword, cscILink
   // use constant file
   const keychainFile = path.join(process.env.APP_BUILDER_TMP_DIR || tmpdir(), `${createHash("sha256").update(currentDir).update("app-builder").digest("hex")}.keychain`)
   // noinspection JSUnusedLocalSymbols
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   await removeKeychain(keychainFile, false).catch(_ => {
     /* ignore*/
   })
@@ -191,20 +194,24 @@ export async function createKeychain({ tmpDir, cscLink, cscKeyPassword, cscILink
 
   await Promise.all([
     // we do not clear downloaded files - will be removed on tmpDir cleanup automatically. not a security issue since in any case data is available as env variables and protected by password.
-    BluebirdPromise.map(certLinks, (link, i) => downloadCertificate(link, tmpDir, currentDir).then(it => (certPaths[i] = it))),
-    BluebirdPromise.mapSeries(securityCommands, it => exec("security", it)),
+    BluebirdPromise.map(certLinks, (link, i) => importCertificate(link, tmpDir, currentDir).then(it => (certPaths[i] = it))),
+    BluebirdPromise.mapSeries(securityCommands, it => exec("/usr/bin/security", it)),
   ])
-  return await importCerts(keychainFile, certPaths, [cscKeyPassword, cscIKeyPassword].filter(it => it != null) as Array<string>)
+  const cscPasswords: Array<string> = [cscKeyPassword]
+  if (cscIKeyPassword != null) {
+    cscPasswords.push(cscIKeyPassword)
+  }
+  return await importCerts(keychainFile, certPaths, cscPasswords)
 }
 
 async function importCerts(keychainFile: string, paths: Array<string>, keyPasswords: Array<string>): Promise<CodeSigningInfo> {
   for (let i = 0; i < paths.length; i++) {
     const password = keyPasswords[i]
-    await exec("security", ["import", paths[i], "-k", keychainFile, "-T", "/usr/bin/codesign", "-T", "/usr/bin/productbuild", "-P", password])
+    await exec("/usr/bin/security", ["import", paths[i], "-k", keychainFile, "-T", "/usr/bin/codesign", "-T", "/usr/bin/productbuild", "-P", password])
 
     // https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
     // https://github.com/electron-userland/electron-packager/issues/701#issuecomment-322315996
-    await exec("security", ["set-key-partition-list", "-S", "apple-tool:,apple:", "-s", "-k", password, keychainFile])
+    await exec("/usr/bin/security", ["set-key-partition-list", "-S", "apple-tool:,apple:", "-s", "-k", password, keychainFile])
   }
 
   return {
@@ -212,13 +219,8 @@ async function importCerts(keychainFile: string, paths: Array<string>, keyPasswo
   }
 }
 
-/** @private */
-export function sign(path: string, name: string, keychain: string): Promise<any> {
-  const args = ["--deep", "--force", "--sign", name, path]
-  if (keychain != null) {
-    args.push("--keychain", keychain)
-  }
-  return exec("codesign", args)
+export async function sign(opts: SignOptions): Promise<void> {
+  return retry(() => signAsync(opts), 3, 5000, 5000)
 }
 
 export let findIdentityRawResult: Promise<Array<string>> | null = null
@@ -236,7 +238,7 @@ async function getValidIdentities(keychain?: string | null): Promise<Array<strin
     // https://github.com/electron-userland/electron-builder/issues/481
     // https://github.com/electron-userland/electron-builder/issues/535
     result = Promise.all<Array<string>>([
-      exec("security", addKeychain(["find-identity", "-v"])).then(it =>
+      exec("/usr/bin/security", addKeychain(["find-identity", "-v"])).then(it =>
         it
           .trim()
           .split("\n")
@@ -249,7 +251,7 @@ async function getValidIdentities(keychain?: string | null): Promise<Array<strin
             return false
           })
       ),
-      exec("security", addKeychain(["find-identity", "-v", "-p", "codesigning"])).then(it => it.trim().split("\n")),
+      exec("/usr/bin/security", addKeychain(["find-identity", "-v", "-p", "codesigning"])).then(it => it.trim().split("\n")),
     ]).then(it => {
       const array = it[0]
         .concat(it[1])
@@ -309,12 +311,10 @@ async function _findIdentity(type: CertType, qualifier?: string | null, keychain
 
 export declare class Identity {
   readonly name: string
-  readonly hash: string
+  readonly hash?: string
 
-  constructor(name: string, hash: string)
+  constructor(name: string, hash?: string)
 }
-
-const _Identity = require("electron-osx-sign/util-identities").Identity
 
 function parseIdentity(line: string): Identity {
   const firstQuoteIndex = line.indexOf('"')

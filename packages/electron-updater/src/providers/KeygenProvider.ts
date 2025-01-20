@@ -5,14 +5,20 @@ import { getChannelFilename, newBaseUrl, newUrlFromBase } from "../util"
 import { parseUpdateInfo, Provider, ProviderRuntimeOptions, resolveFiles } from "./Provider"
 
 export class KeygenProvider extends Provider<UpdateInfo> {
+  private readonly defaultHostname = "api.keygen.sh"
   private readonly baseUrl: URL
 
-  constructor(private readonly configuration: KeygenOptions, private readonly updater: AppUpdater, runtimeOptions: ProviderRuntimeOptions) {
+  constructor(
+    private readonly configuration: KeygenOptions,
+    private readonly updater: AppUpdater,
+    runtimeOptions: ProviderRuntimeOptions
+  ) {
     super({
       ...runtimeOptions,
       isUseMultipleRangeRequest: false,
     })
-    this.baseUrl = newBaseUrl(`https://api.keygen.sh/v1/accounts/${this.configuration.account}/artifacts`)
+    const host = this.configuration.host || this.defaultHostname
+    this.baseUrl = newBaseUrl(`https://${host}/v1/accounts/${this.configuration.account}/artifacts?product=${this.configuration.product}`)
   }
 
   private get channel(): string {
@@ -28,11 +34,12 @@ export class KeygenProvider extends Provider<UpdateInfo> {
         channelUrl,
         {
           Accept: "application/vnd.api+json",
+          "Keygen-Version": "1.1",
         },
         cancellationToken
       )
       return parseUpdateInfo(updateInfo, channelFile, channelUrl)
-    } catch (e) {
+    } catch (e: any) {
       throw newError(`Unable to find latest version on ${this.toString()}, please ensure release exists: ${e.stack || e.message}`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")
     }
   }

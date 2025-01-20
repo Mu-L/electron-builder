@@ -1,5 +1,19 @@
-import { AllPublishOptions, asArray, CancellationToken, newError, PublishConfiguration, UpdateInfo, UUID, DownloadOptions, CancellationError } from "builder-util-runtime"
+import {
+  AllPublishOptions,
+  asArray,
+  CancellationToken,
+  newError,
+  PublishConfiguration,
+  UpdateInfo,
+  UUID,
+  DownloadOptions,
+  CancellationError,
+  ProgressInfo,
+  BlockMap,
+  retry,
+} from "builder-util-runtime"
 import { randomBytes } from "crypto"
+import { release } from "os"
 import { EventEmitter } from "events"
 import { mkdir, outputFile, readFile, rename, unlink } from "fs-extra"
 import { OutgoingHttpHeaders } from "http"
@@ -10,23 +24,49 @@ import { eq as isVersionsEqual, gt as isVersionGreaterThan, lt as isVersionLessT
 import { AppAdapter } from "./AppAdapter"
 import { createTempUpdateFile, DownloadedUpdateHelper } from "./DownloadedUpdateHelper"
 import { ElectronAppAdapter } from "./ElectronAppAdapter"
-import { ElectronHttpExecutor, getNetSession } from "./electronHttpExecutor"
+import { ElectronHttpExecutor, getNetSession, LoginCallback } from "./electronHttpExecutor"
 import { GenericProvider } from "./providers/GenericProvider"
 import { DOWNLOAD_PROGRESS, Logger, Provider, ResolvedUpdateFileInfo, UPDATE_DOWNLOADED, UpdateCheckResult, UpdateDownloadedEvent, UpdaterSignal } from "./main"
 import { createClient, isUrlProbablySupportMultiRangeRequests } from "./providerFactory"
 import { ProviderPlatform } from "./providers/Provider"
+import type { TypedEmitter } from "tiny-typed-emitter"
 import Session = Electron.Session
+import type { AuthInfo } from "electron"
+import { gunzipSync } from "zlib"
+import { blockmapFiles } from "./util"
+import { DifferentialDownloaderOptions } from "./differentialDownloader/DifferentialDownloader"
+import { GenericDifferentialDownloader } from "./differentialDownloader/GenericDifferentialDownloader"
 
-export abstract class AppUpdater extends EventEmitter {
+export type AppUpdaterEvents = {
+  error: (error: Error, message?: string) => void
+  login: (info: AuthInfo, callback: LoginCallback) => void
+  "checking-for-update": () => void
+  "update-not-available": (info: UpdateInfo) => void
+  "update-available": (info: UpdateInfo) => void
+  "update-downloaded": (event: UpdateDownloadedEvent) => void
+  "download-progress": (info: ProgressInfo) => void
+  "update-cancelled": (info: UpdateInfo) => void
+  "appimage-filename-updated": (path: string) => void
+}
+
+export abstract class AppUpdater extends (EventEmitter as new () => TypedEmitter<AppUpdaterEvents>) {
   /**
    * Whether to automatically download an update when it is found.
+   * @default true
    */
   autoDownload = true
 
   /**
    * Whether to automatically install a downloaded update on app quit (if `quitAndInstall` was not called before).
+   * @default true
    */
   autoInstallOnAppQuit = true
+
+  /**
+   * Whether to run the app after finish install when run the installer is NOT in silent mode.
+   * @default true
+   */
+  autoRunAppAfterInstall = true
 
   /**
    * *GitHub provider only.* Whether to allow update to pre-release versions. Defaults to `true` if application version contains prerelease components (e.g. `0.12.1-alpha.1`, here `alpha` is a prerelease component), otherwise `false`.
@@ -58,8 +98,23 @@ export abstract class AppUpdater extends EventEmitter {
    *
    * @default false
    */
-
   disableWebInstaller = false
+
+  /**
+   * *NSIS only* Disable differential downloads and always perform full download of installer.
+   *
+   * @default false
+   */
+  disableDifferentialDownload = false
+
+  /**
+   * Allows developer to force the updater to work in "dev" mode, looking for "dev-app-update.yml" instead of "app-update.yml"
+   * Dev: `path.join(this.app.getAppPath(), "dev-app-update.yml")`
+   * Prod: `path.join(process.resourcesPath!, "app-update.yml")`
+   *
+   * @default false
+   */
+  forceDevUpdateConfig = false
 
   /**
    * The current application version.
@@ -71,14 +126,14 @@ export abstract class AppUpdater extends EventEmitter {
   protected downloadedUpdateHelper: DownloadedUpdateHelper | null = null
 
   /**
-   * Get the update channel. Not applicable for GitHub. Doesn't return `channel` from the update configuration, only if was previously set.
+   * Get the update channel. Doesn't return `channel` from the update configuration, only if was previously set.
    */
   get channel(): string | null {
     return this._channel
   }
 
   /**
-   * Set the update channel. Not applicable for GitHub. Overrides `channel` in the update configuration.
+   * Set the update channel. Overrides `channel` in the update configuration.
    *
    * `allowDowngrade` will be automatically set to `true`. If this behavior is not suitable for you, simple set `allowDowngrade` explicitly after.
    */
@@ -157,6 +212,7 @@ export abstract class AppUpdater extends EventEmitter {
   configOnDisk = new Lazy<any>(() => this.loadUpdateConfig())
 
   private checkForUpdatesPromise: Promise<UpdateCheckResult> | null = null
+  private downloadPromise: Promise<Array<string>> | null = null
 
   protected readonly app: AppAdapter
 
@@ -203,7 +259,7 @@ export abstract class AppUpdater extends EventEmitter {
   }
 
   /**
-   * Configure update provider. If value is `string`, [GenericServerOptions](/configuration/publish#genericserveroptions) will be set with value as `url`.
+   * Configure update provider. If value is `string`, [GenericServerOptions](./publish.md#genericserveroptions) will be set with value as `url`.
    * @param options If you want to override configuration in the `app-update.yml`.
    */
   setFeedURL(options: PublishConfiguration | AllPublishOptions | string) {
@@ -243,7 +299,7 @@ export abstract class AppUpdater extends EventEmitter {
         nullizePromise()
         return it
       })
-      .catch(e => {
+      .catch((e: any) => {
         nullizePromise()
         this.emit("error", e, `Cannot check for updates: ${(e.stack || e).toString()}`)
         throw e
@@ -254,8 +310,9 @@ export abstract class AppUpdater extends EventEmitter {
   }
 
   public isUpdaterActive(): boolean {
-    if (!this.app.isPackaged) {
-      this._logger.info("Skip checkForUpdatesAndNotify because application is not packed")
+    const isEnabled = this.app.isPackaged || this.forceDevUpdateConfig
+    if (!isEnabled) {
+      this._logger.info("Skip checkForUpdates because application is not packed and dev update config is not forced")
       return false
     }
     return true
@@ -338,6 +395,19 @@ export abstract class AppUpdater extends EventEmitter {
       return false
     }
 
+    const minimumSystemVersion = updateInfo?.minimumSystemVersion
+    const currentOSVersion = release()
+    if (minimumSystemVersion) {
+      try {
+        if (isVersionLessThan(currentOSVersion, minimumSystemVersion)) {
+          this._logger.info(`Current OS version ${currentOSVersion} is less than the minimum OS version required ${minimumSystemVersion} for version ${currentOSVersion}`)
+          return false
+        }
+      } catch (e: any) {
+        this._logger.warn(`Failed to compare current OS version(${currentOSVersion}) with minimum OS version(${minimumSystemVersion}): ${(e.message || e).toString()}`)
+      }
+    }
+
     const isStagingMatch = await this.isStagingMatch(updateInfo)
     if (!isStagingMatch) {
       return false
@@ -370,7 +440,6 @@ export abstract class AppUpdater extends EventEmitter {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
   private createProviderRuntimeOptions() {
     return {
       isUseMultipleRangeRequest: true,
@@ -386,7 +455,9 @@ export abstract class AppUpdater extends EventEmitter {
     const updateInfo = result.info
     if (!(await this.isUpdateAvailable(updateInfo))) {
       this._logger.info(
-        `Update for version ${this.currentVersion} is not available (latest version: ${updateInfo.version}, downgrade is ${this.allowDowngrade ? "allowed" : "disallowed"}).`
+        `Update for version ${this.currentVersion.format()} is not available (latest version: ${updateInfo.version}, downgrade is ${
+          this.allowDowngrade ? "allowed" : "disallowed"
+        }).`
       )
       this.emit("update-not-available", updateInfo)
       return {
@@ -419,14 +490,19 @@ export abstract class AppUpdater extends EventEmitter {
 
   /**
    * Start downloading update manually. You can use this method if `autoDownload` option is set to `false`.
-   * @returns {Promise<string>} Path to downloaded file.
+   * @returns {Promise<Array<string>>} Paths to downloaded files.
    */
-  downloadUpdate(cancellationToken: CancellationToken = new CancellationToken()): Promise<any> {
+  downloadUpdate(cancellationToken: CancellationToken = new CancellationToken()): Promise<Array<string>> {
     const updateInfoAndProvider = this.updateInfoAndProvider
     if (updateInfoAndProvider == null) {
       const error = new Error("Please check update first")
       this.dispatchError(error)
       return Promise.reject(error)
+    }
+
+    if (this.downloadPromise != null) {
+      this._logger.info("Downloading update (already in progress)")
+      return this.downloadPromise
     }
 
     this._logger.info(
@@ -447,18 +523,21 @@ export abstract class AppUpdater extends EventEmitter {
       return e
     }
 
-    try {
-      return this.doDownloadUpdate({
-        updateInfoAndProvider,
-        requestHeaders: this.computeRequestHeaders(updateInfoAndProvider.provider),
-        cancellationToken,
-        disableWebInstaller: this.disableWebInstaller,
-      }).catch(e => {
+    this.downloadPromise = this.doDownloadUpdate({
+      updateInfoAndProvider,
+      requestHeaders: this.computeRequestHeaders(updateInfoAndProvider.provider),
+      cancellationToken,
+      disableWebInstaller: this.disableWebInstaller,
+      disableDifferentialDownload: this.disableDifferentialDownload,
+    })
+      .catch((e: any) => {
         throw errorHandler(e)
       })
-    } catch (e: any) {
-      return Promise.reject(errorHandler(e))
-    }
+      .finally(() => {
+        this.downloadPromise = null
+      })
+
+    return this.downloadPromise
   }
 
   protected dispatchError(e: Error): void {
@@ -479,7 +558,8 @@ export abstract class AppUpdater extends EventEmitter {
    * This is different from the normal quit event sequence.
    *
    * @param isSilent *windows-only* Runs the installer in silent mode. Defaults to `false`.
-   * @param isForceRunAfter Run the app after finish even on silent install. Not applicable for macOS. Ignored if `isSilent` is set to `false`.
+   * @param isForceRunAfter Run the app after finish even on silent install. Not applicable for macOS.
+   * Ignored if `isSilent` is set to `false`(In this case you can still set `autoRunAppAfterInstall` to `false` to prevent run the app after finish).
    */
   abstract quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void
 
@@ -523,7 +603,7 @@ export abstract class AppUpdater extends EventEmitter {
     this._logger.info(`Generated new staging user ID: ${id}`)
     try {
       await outputFile(file, id)
-    } catch (e) {
+    } catch (e: any) {
       this._logger.warn(`Couldn't write out staging user ID: ${e}`)
     }
     return id
@@ -595,7 +675,7 @@ export abstract class AppUpdater extends EventEmitter {
         return path.basename(urlPath)
       } else {
         // url like /latest, generate name
-        return `update.${taskOptions.fileExtension}`
+        return taskOptions.fileInfo.info.url
       }
     }
 
@@ -634,8 +714,15 @@ export abstract class AppUpdater extends EventEmitter {
     const tempUpdateFile = await createTempUpdateFile(`temp-${updateFileName}`, cacheDir, log)
     try {
       await taskOptions.task(tempUpdateFile, downloadOptions, packageFile, removeFileIfAny)
-      await rename(tempUpdateFile, updateFile)
-    } catch (e) {
+      await retry(
+        () => rename(tempUpdateFile, updateFile),
+        60,
+        500,
+        0,
+        0,
+        error => error instanceof Error && /^EBUSY:/.test(error.message)
+      )
+    } catch (e: any) {
       await removeFileIfAny()
 
       if (e instanceof CancellationError) {
@@ -648,6 +735,63 @@ export abstract class AppUpdater extends EventEmitter {
     log.info(`New version ${version} has been downloaded to ${updateFile}`)
     return await done(true)
   }
+  protected async differentialDownloadInstaller(
+    fileInfo: ResolvedUpdateFileInfo,
+    downloadUpdateOptions: DownloadUpdateOptions,
+    installerPath: string,
+    provider: Provider<any>,
+    oldInstallerFileName: string
+  ): Promise<boolean> {
+    try {
+      if (this._testOnlyOptions != null && !this._testOnlyOptions.isUseDifferentialDownload) {
+        return true
+      }
+      const blockmapFileUrls = blockmapFiles(fileInfo.url, this.app.version, downloadUpdateOptions.updateInfoAndProvider.info.version)
+      this._logger.info(`Download block maps (old: "${blockmapFileUrls[0]}", new: ${blockmapFileUrls[1]})`)
+
+      const downloadBlockMap = async (url: URL): Promise<BlockMap> => {
+        const data = await this.httpExecutor.downloadToBuffer(url, {
+          headers: downloadUpdateOptions.requestHeaders,
+          cancellationToken: downloadUpdateOptions.cancellationToken,
+        })
+
+        if (data == null || data.length === 0) {
+          throw new Error(`Blockmap "${url.href}" is empty`)
+        }
+
+        try {
+          return JSON.parse(gunzipSync(data).toString())
+        } catch (e: any) {
+          throw new Error(`Cannot parse blockmap "${url.href}", error: ${e}`)
+        }
+      }
+
+      const downloadOptions: DifferentialDownloaderOptions = {
+        newUrl: fileInfo.url,
+        oldFile: path.join(this.downloadedUpdateHelper!.cacheDir, oldInstallerFileName),
+        logger: this._logger,
+        newFile: installerPath,
+        isUseMultipleRangeRequest: provider.isUseMultipleRangeRequest,
+        requestHeaders: downloadUpdateOptions.requestHeaders,
+        cancellationToken: downloadUpdateOptions.cancellationToken,
+      }
+
+      if (this.listenerCount(DOWNLOAD_PROGRESS) > 0) {
+        downloadOptions.onProgress = it => this.emit(DOWNLOAD_PROGRESS, it)
+      }
+
+      const blockMapDataList = await Promise.all(blockmapFileUrls.map(u => downloadBlockMap(u)))
+      await new GenericDifferentialDownloader(fileInfo.info, this.httpExecutor, downloadOptions).download(blockMapDataList[0], blockMapDataList[1])
+      return false
+    } catch (e: any) {
+      this._logger.error(`Cannot download differentially, fallback to full download: ${e.stack || e}`)
+      if (this._testOnlyOptions != null) {
+        // test mode
+        throw e
+      }
+      return true
+    }
+  }
 }
 
 export interface DownloadUpdateOptions {
@@ -655,6 +799,7 @@ export interface DownloadUpdateOptions {
   readonly requestHeaders: OutgoingHttpHeaders
   readonly cancellationToken: CancellationToken
   readonly disableWebInstaller?: boolean
+  readonly disableDifferentialDownload?: boolean
 }
 
 function hasPrereleaseComponents(version: SemVer) {

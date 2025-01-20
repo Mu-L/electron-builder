@@ -1,13 +1,19 @@
 import { CancellationToken, PackageFileInfo, ProgressInfo, UpdateFileInfo, UpdateInfo } from "builder-util-runtime"
 import { EventEmitter } from "events"
+import { existsSync, readFileSync } from "fs-extra"
+import * as path from "path"
 import { URL } from "url"
 import { AppUpdater } from "./AppUpdater"
 import { LoginCallback } from "./electronHttpExecutor"
 
+export { BaseUpdater } from "./BaseUpdater"
 export { AppUpdater, NoOpLogger } from "./AppUpdater"
 export { CancellationToken, PackageFileInfo, ProgressInfo, UpdateFileInfo, UpdateInfo }
 export { Provider } from "./providers/Provider"
 export { AppImageUpdater } from "./AppImageUpdater"
+export { DebUpdater } from "./DebUpdater"
+export { PacmanUpdater } from "./PacmanUpdater"
+export { RpmUpdater } from "./RpmUpdater"
 export { MacUpdater } from "./MacUpdater"
 export { NsisUpdater } from "./NsisUpdater"
 
@@ -25,6 +31,33 @@ function doLoadAutoUpdater(): AppUpdater {
     _autoUpdater = new (require("./MacUpdater").MacUpdater)()
   } else {
     _autoUpdater = new (require("./AppImageUpdater").AppImageUpdater)()
+    try {
+      const identity = path.join(process.resourcesPath, "package-type")
+      if (!existsSync(identity)) {
+        return _autoUpdater
+      }
+      console.info("Checking for beta autoupdate feature for deb/rpm distributions")
+      const fileType = readFileSync(identity).toString().trim()
+      console.info("Found package-type:", fileType)
+      switch (fileType) {
+        case "deb":
+          _autoUpdater = new (require("./DebUpdater").DebUpdater)()
+          break
+        case "rpm":
+          _autoUpdater = new (require("./RpmUpdater").RpmUpdater)()
+          break
+        case "pacman":
+          _autoUpdater = new (require("./PacmanUpdater").PacmanUpdater)()
+          break
+        default:
+          break
+      }
+    } catch (error: any) {
+      console.warn(
+        "Unable to detect 'package-type' for autoUpdater (beta rpm/deb support). If you'd like to expand support, please consider contributing to electron-builder",
+        error.message
+      )
+    }
   }
   return _autoUpdater
 }
@@ -56,8 +89,8 @@ export interface UpdateCheckResult {
 
 export type UpdaterEvents = "login" | "checking-for-update" | "update-available" | "update-not-available" | "update-cancelled" | "download-progress" | "update-downloaded" | "error"
 
-export const DOWNLOAD_PROGRESS: UpdaterEvents = "download-progress"
-export const UPDATE_DOWNLOADED: UpdaterEvents = "update-downloaded"
+export const DOWNLOAD_PROGRESS = "download-progress"
+export const UPDATE_DOWNLOADED = "update-downloaded"
 
 export type LoginHandler = (authInfo: any, callback: LoginCallback) => void
 
@@ -110,3 +143,8 @@ export interface Logger {
 
   debug?(message: string): void
 }
+
+// return null if verify signature succeed
+// return error message if verify signature failed
+
+export type verifyUpdateCodeSignature = (publisherName: string[], path: string) => Promise<string | null>

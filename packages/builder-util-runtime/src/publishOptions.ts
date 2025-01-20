@@ -46,6 +46,13 @@ export interface PublishConfiguration {
    * Any custom request headers
    */
   readonly requestHeaders?: OutgoingHttpHeaders
+
+  /**
+   * Request timeout in milliseconds. (Default is 2 minutes; O is ignored)
+   *
+   * @default 120000
+   */
+  readonly timeout?: number | null
 }
 
 // https://github.com/electron-userland/electron-builder/issues/3261
@@ -105,12 +112,12 @@ export interface GithubOptions extends PublishConfiguration {
   readonly protocol?: "https" | "http" | null
 
   /**
-   * The access token to support auto-update from private github repositories. Never specify it in the configuration files. Only for [setFeedURL](/auto-update#appupdatersetfeedurloptions).
+   * The access token to support auto-update from private github repositories. Never specify it in the configuration files. Only for [setFeedURL](./auto-update.md#appupdatersetfeedurloptions).
    */
   readonly token?: string | null
 
   /**
-   * Whether to use private github auto-update provider if `GH_TOKEN` environment variable is defined. See [Private GitHub Update Repo](/auto-update#private-github-update-repo).
+   * Whether to use private github auto-update provider if `GH_TOKEN` environment variable is defined. See [Private GitHub Update Repo](./auto-update.md#private-github-update-repo).
    */
   readonly private?: boolean | null
 
@@ -136,7 +143,7 @@ export function githubUrl(options: GithubOptions, defaultHost = "github.com") {
 
 /**
  * Generic (any HTTP(S) server) options.
- * In all publish options [File Macros](/file-patterns#file-macros) are supported.
+ * In all publish options [File Macros](./file-patterns.md#file-macros) are supported.
  */
 export interface GenericServerOptions extends PublishConfiguration {
   /**
@@ -173,6 +180,12 @@ export interface KeygenOptions extends PublishConfiguration {
   readonly provider: "keygen"
 
   /**
+   * Keygen host for self-hosted instances
+   * @default "api.keygen.sh"
+   */
+  readonly host?: string
+
+  /**
    * Keygen account's UUID
    */
   readonly account: string
@@ -198,11 +211,11 @@ export interface KeygenOptions extends PublishConfiguration {
  * Bitbucket options.
  * https://bitbucket.org/
  * Define `BITBUCKET_TOKEN` environment variable.
- * 
+ *
  * For converting an app password to a usable token, you can utilize this
 ```typescript
-convertAppPassword(owner: string, token: string) {
-  const base64encodedData = Buffer.from(`${owner}:${token.trim()}`).toString("base64")
+convertAppPassword(owner: string, appPassword: string) {
+  const base64encodedData = Buffer.from(`${owner}:${appPassword.trim()}`).toString("base64")
   return `Basic ${base64encodedData}`
 }
 ```
@@ -219,7 +232,7 @@ export interface BitbucketOptions extends PublishConfiguration {
   readonly owner: string
 
   /**
-   * The access token to support auto-update from private bitbucket repositories.
+   * The [app password](https://bitbucket.org/account/settings/app-passwords) to support auto-update from private bitbucket repositories.
    */
   readonly token?: string | null
 
@@ -241,7 +254,7 @@ export interface BitbucketOptions extends PublishConfiguration {
 }
 
 /**
- * [Snap Store](https://snapcraft.io/) options.
+ * [Snap Store](https://snapcraft.io/) options. To publish directly to Snapcraft, see <a href="https://snapcraft.io/docs/snapcraft-authentication">Snapcraft authentication options</a> for local or CI/CD authentication options.
  */
 export interface SnapStoreOptions extends PublishConfiguration {
   /**
@@ -287,9 +300,9 @@ export interface BaseS3Options extends PublishConfiguration {
  * AWS credentials are required, please see [getting your credentials](http://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/getting-your-credentials.html).
  * Define `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` [environment variables](http://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/loading-node-credentials-environment.html).
  * Or in the [~/.aws/credentials](http://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/loading-node-credentials-shared.html).
- * 
+ *
  * Example configuration:
- * 
+ *
 ```json
 {
   "build":
@@ -342,6 +355,19 @@ export interface S3Options extends BaseS3Options {
    * The endpoint should be a string like `https://{service}.{region}.amazonaws.com`.
    */
   readonly endpoint?: string | null
+
+  /**
+   * If set to true, this will enable the s3 accelerated endpoint
+   * These endpoints have a particular format of:
+   *  ${bucketname}.s3-accelerate.amazonaws.com
+   */
+  readonly accelerate?: boolean
+
+  /**
+   * When true, force a path-style endpoint to be used where the bucket name is part of the path.
+   * [Path-style Access](https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#path-style-access)
+   */
+  readonly forcePathStyle?: boolean
 }
 
 /**
@@ -378,7 +404,9 @@ export function getS3LikeProviderBaseUrl(configuration: PublishConfiguration) {
 
 function s3Url(options: S3Options) {
   let url: string
-  if (options.endpoint != null) {
+  if (options.accelerate == true) {
+    url = `https://${options.bucket}.s3-accelerate.amazonaws.com`
+  } else if (options.endpoint != null) {
     url = `${options.endpoint}/${options.bucket}`
   } else if (options.bucket.includes(".")) {
     if (options.region == null) {

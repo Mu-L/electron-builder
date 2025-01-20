@@ -1,23 +1,26 @@
 import { DmgOptions, Target } from "app-builder-lib"
 import { findIdentity, isSignAllowed } from "app-builder-lib/out/codeSign/macCodeSign"
-import MacPackager from "app-builder-lib/out/macPackager"
+import { MacPackager } from "app-builder-lib/out/macPackager"
 import { createBlockmap } from "app-builder-lib/out/targets/differentialUpdateInfoBuilder"
 import { executeAppBuilderAsJson } from "app-builder-lib/out/util/appBuilder"
-import { sanitizeFileName } from "app-builder-lib/out/util/filename"
-import { Arch, AsyncTaskManager, exec, getArchSuffix, InvalidConfigurationError, isEmptyOrSpaces, log, spawn, retry } from "builder-util"
+import { sanitizeFileName } from "builder-util/out/filename"
+import { Arch, AsyncTaskManager, exec, getArchSuffix, InvalidConfigurationError, isEmptyOrSpaces, log, copyDir, copyFile, exists, statOrNull } from "builder-util"
 import { CancellationToken } from "builder-util-runtime"
-import { copyDir, copyFile, exists, statOrNull } from "builder-util/out/fs"
 import { stat } from "fs-extra"
 import * as path from "path"
 import { TmpDir } from "temp-file"
 import { addLicenseToDmg } from "./dmgLicense"
 import { attachAndExecute, computeBackground, detach, getDmgVendorPath } from "./dmgUtil"
 import { release as getOsRelease } from "os"
+import { hdiUtil } from "./hdiuil"
 
 export class DmgTarget extends Target {
   readonly options: DmgOptions = this.packager.config.dmg || Object.create(null)
 
-  constructor(private readonly packager: MacPackager, readonly outDir: string) {
+  constructor(
+    private readonly packager: MacPackager,
+    readonly outDir: string
+  ) {
     super("dmg")
   }
 
@@ -48,7 +51,7 @@ export class DmgTarget extends Target {
     const backgroundFile = specification.background == null ? null : await transformBackgroundFileIfNeed(specification.background, packager.info.tempDirManager)
     const finalSize = await computeAssetSize(packager.info.cancellationToken, tempDmg, specification, backgroundFile)
     const expandingFinalSize = finalSize * 0.1 + finalSize
-    await exec("hdiutil", ["resize", "-size", expandingFinalSize.toString(), tempDmg])
+    await hdiUtil(["resize", "-size", expandingFinalSize.toString(), tempDmg])
 
     const volumePath = path.join("/Volumes", volumeName)
     if (await exists(volumePath)) {
@@ -65,9 +68,9 @@ export class DmgTarget extends Target {
     if (specification.format === "UDZO") {
       args.push("-imagekey", `zlib-level=${process.env.ELECTRON_BUILDER_COMPRESSION_LEVEL || "9"}`)
     }
-    await spawn("hdiutil", addLogLevel(args))
+    await hdiUtil(addLogLevel(args))
     if (this.options.internetEnabled && parseInt(getOsRelease().split(".")[0], 10) < 19) {
-      await exec("hdiutil", addLogLevel(["internet-enable"]).concat(artifactPath))
+      await hdiUtil(addLogLevel(["internet-enable"]).concat(artifactPath))
     }
 
     const licenseData = await addLicenseToDmg(packager, artifactPath)
@@ -115,7 +118,7 @@ export class DmgTarget extends Target {
       }
     }
 
-    const args = ["--sign", identity.hash]
+    const args = ["--sign", identity.hash!]
     if (keychainFile != null) {
       args.push("--keychain", keychainFile)
     }
@@ -198,18 +201,9 @@ async function createStageDmg(tempDmg: string, appPath: string, volumeName: stri
     imageArgs.push("-debug")
   }
 
-  let filesystem = ["HFS+", "-fsargs", "-c c=64,a=16,e=16"]
-  if (process.arch === "arm64") {
-    // Apple Silicon `hdiutil` dropped support for HFS+, so we force the latest type
-    // https://github.com/electron-userland/electron-builder/issues/4606
-    filesystem = ["APFS"]
-    log.warn(null, "Detected arm64 process, HFS+ is unavailable. Creating dmg with APFS - supports Mac OSX 10.12+")
-  }
-  imageArgs.push("-fs", ...filesystem)
+  imageArgs.push("-fs", "APFS")
   imageArgs.push(tempDmg)
-  // The reason for retrying up to ten times is that hdiutil create in some cases fail to unmount due to "resource busy".
-  // https://github.com/electron-userland/electron-builder/issues/5431
-  await retry(() => spawn("hdiutil", imageArgs), 5, 1000)
+  await hdiUtil(imageArgs)
   return tempDmg
 }
 
@@ -241,12 +235,14 @@ async function computeAssetSize(cancellationToken: CancellationToken, dmgFile: s
 
 async function customizeDmg(volumePath: string, specification: DmgOptions, packager: MacPackager, backgroundFile: string | null | undefined) {
   const window = specification.window
+  const isValidIconTextSize = !!specification.iconTextSize && specification.iconTextSize >= 10 && specification.iconTextSize <= 16
+  const iconTextSize = isValidIconTextSize ? specification.iconTextSize : 12
   const env: any = {
     ...process.env,
     volumePath,
     appFileName: `${packager.appInfo.productFilename}.app`,
     iconSize: specification.iconSize || 80,
-    iconTextSize: specification.iconTextSize || 12,
+    iconTextSize,
 
     PYTHONIOENCODING: "utf8",
   }
@@ -298,14 +294,18 @@ async function customizeDmg(volumePath: string, specification: DmgOptions, packa
   env.iconLocations = await computeDmgEntries(specification, volumePath, packager, asyncTaskManager)
   await asyncTaskManager.awaitTasks()
   const executePython = async (execName: string) => {
-    await exec(process.env.PYTHON_PATH || `/usr/bin/${execName}`, [path.join(getDmgVendorPath(), "dmgbuild/core.py")], {
+    let pythonPath = process.env.PYTHON_PATH
+    if (!pythonPath) {
+      pythonPath = (await exec("which", [execName])).trim()
+    }
+    await exec(pythonPath, [path.join(getDmgVendorPath(), "dmgbuild/core.py")], {
       cwd: getDmgVendorPath(),
       env,
     })
   }
   try {
     await executePython("python3")
-  } catch (error) {
+  } catch (_error: any) {
     await executePython("python")
   }
   return packager.packagerOptions.effectiveOptionComputed == null || !(await packager.packagerOptions.effectiveOptionComputed({ volumePath, specification, packager }))

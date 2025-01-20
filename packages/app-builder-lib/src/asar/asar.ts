@@ -2,13 +2,11 @@ import { createFromBuffer } from "chromium-pickle-js"
 import { close, open, read, readFile, Stats } from "fs-extra"
 import * as path from "path"
 
-/** @internal */
 export interface ReadAsarHeader {
   readonly header: string
   readonly size: number
 }
 
-/** @internal */
 export interface NodeIntegrity {
   algorithm: "SHA256"
   hash: string
@@ -16,7 +14,6 @@ export interface NodeIntegrity {
   blocks: Array<string>
 }
 
-/** @internal */
 export class Node {
   // we don't use Map because later it will be stringified
   files?: { [key: string]: Node }
@@ -34,13 +31,16 @@ export class Node {
   integrity?: NodeIntegrity
 }
 
-/** @internal */
 export class AsarFilesystem {
   private offset = 0
 
-  constructor(readonly src: string, readonly header = new Node(), readonly headerSize: number = -1) {
+  constructor(
+    readonly src: string,
+    readonly header = new Node(),
+    readonly headerSize: number = -1
+  ) {
     if (this.header.files == null) {
-      this.header.files = {}
+      this.header.files = Object.create(null) as { [key: string]: Node }
     }
   }
 
@@ -54,7 +54,7 @@ export class AsarFilesystem {
             return null
           }
           child = new Node()
-          child.files = {}
+          child.files = Object.create(null) as { [key: string]: Node }
           node.files![dir] = child
         }
         node = child
@@ -71,7 +71,7 @@ export class AsarFilesystem {
     const name = path.basename(p)
     const dirNode = this.searchNodeFromDirectory(path.dirname(p), true)!
     if (dirNode.files == null) {
-      dirNode.files = {}
+      dirNode.files = Object.create(null) as { [key: string]: Node }
     }
 
     let result = dirNode.files[name]
@@ -105,7 +105,7 @@ export class AsarFilesystem {
 
     let children = dirNode.files
     if (children == null) {
-      children = {}
+      children = Object.create(null) as { [key: string]: Node }
       dirNode.files = children
     }
     children[path.basename(file)] = node
